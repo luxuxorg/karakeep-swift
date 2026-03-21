@@ -39,12 +39,19 @@ assert(t.search('').length === 4, 'search("") returns all entries');
 // Serialize / deserialize round-trip
 const serialized = t.serialize();
 assert(typeof serialized === 'object', 'serialize() returns plain object');
-assert(JSON.stringify(serialized) !== undefined, 'serialize() output is JSON-safe');
+const reparsed = Trie.deserialize(JSON.parse(JSON.stringify(serialized)));
+assert(reparsed.search('dev').length === 2, 'serialize() survives JSON round-trip');
 
 const t2 = Trie.deserialize(serialized);
 const roundTrip = t2.search('dev');
 assert(roundTrip.length === 2, 'deserialize() round-trip: search("dev") returns 2');
 assert(t2.search('react').length === 1, 'deserialize() round-trip: search("react") returns 1');
+
+// Case-insensitive search test
+const tCase = new Trie();
+tCase.insert('DevTools', 'id-case');
+assert(tCase.search('dev').length === 1, 'search is case-insensitive (mixed-case insert)');
+assert(tCase.search('DEV').length === 1, 'search is case-insensitive (uppercase query)');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -6,7 +6,7 @@
 class TrieNode {
   constructor() {
     this.children = {}; // char → TrieNode
-    this.entries = [];  // [{ label, id }] stored at leaf/intermediate nodes
+    this.entries = [];  // [{ label, id }] stored at the terminal node for each inserted word
   }
 }
 
@@ -56,10 +56,10 @@ export class Trie {
 
   static deserialize(data) {
     const trie = new Trie();
-    function deserializeNode(data) {
+    function deserializeNode(nodeData) {
       const node = new TrieNode();
-      node.entries = data.entries || [];
-      for (const [ch, childData] of Object.entries(data.children || {})) {
+      node.entries = nodeData.entries || [];
+      for (const [ch, childData] of Object.entries(nodeData.children || {})) {
         node.children[ch] = deserializeNode(childData);
       }
       return node;
