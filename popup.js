@@ -39,7 +39,9 @@ async function init() {
   pageTitleEl.textContent = currentTitle;
 
   // Try to get selected text from content script (non-blocking)
+  // lastError must be consumed to suppress "receiving end does not exist" on restricted pages
   chrome.tabs.sendMessage(tab.id, { action: 'getSelection' }, (resp) => {
+    if (chrome.runtime.lastError) return;
     if (resp?.selection) noteInput.value = resp.selection;
   });
 
@@ -98,7 +100,8 @@ function addTag(tag) {
 function addRawTag(name) {
   const trimmed = name.trim();
   if (!trimmed) return;
-  // Use name as both id and label for raw (not-yet-created) tags
+  // Use name as both id and label for raw (not-yet-created) tags.
+  // The Karakeep API accepts tag names in the tagIds field to create-or-reuse tags by name.
   addTag({ id: trimmed, name: trimmed });
 }
 

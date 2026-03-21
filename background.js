@@ -78,7 +78,8 @@ async function updateBadge(tabId, url) {
   const result = await chrome.storage.local.get(STORAGE.BOOKMARKED);
   const bookmarkedUrls = result[STORAGE.BOOKMARKED] ?? [];
   if (bookmarkedUrls.includes(url)) {
-    chrome.action.setBadgeText({ text: '', tabId });
+    // A single space renders as a visible colored dot; empty string would hide the badge entirely
+    chrome.action.setBadgeText({ text: ' ', tabId });
     chrome.action.setBadgeBackgroundColor({ color: '#22c55e', tabId });
   } else {
     chrome.action.setBadgeText({ text: '', tabId });
