@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Karakeep</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Not-configured state (shown when settings are missing) -->
+  <div class="unconfigured" id="unconfigured" style="display:none">
+    <p>Configure Karakeep before saving.</p>
+    <button id="openOptionsBtn">Open Settings</button>
+  </div>
+
+  <!-- Main form -->
+  <div id="mainForm" style="display:none">
+    <div class="header">
+      <span class="header-title">Karakeep</span>
+      <button class="header-gear" id="gearBtn" title="Settings">⚙</button>
+    </div>
+
+    <div class="form">
+      <div class="page-row">
+        <div class="page-title" id="pageTitle"></div>
+        <select class="list-select" id="listSelect"></select>
+      </div>
+
+      <textarea class="note-textarea" id="noteInput" rows="3" placeholder="Add a note…"></textarea>
+
+      <div class="tags-area">
+        <div class="chips-row" id="chipsRow"></div>
+        <input class="tag-input" id="tagInput" type="text" placeholder="Add tags…" autocomplete="off">
+        <div class="suggestions" id="suggestions"></div>
+      </div>
+
+      <button class="save-btn" id="saveBtn">Save</button>
+    </div>
+
+    <div class="error-banner" id="errorBanner"></div>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
