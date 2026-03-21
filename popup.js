@@ -176,3 +176,41 @@ tagInput.addEventListener('blur', () => {
   // Delay so mousedown on suggestion fires first
   setTimeout(closeSuggestions, 150);
 });
+
+// ─── Save ─────────────────────────────────────────────────────────────────────
+
+function showError(msg) {
+  errorBanner.textContent = msg;
+  errorBanner.classList.add('visible');
+}
+
+function hideError() {
+  errorBanner.classList.remove('visible');
+  errorBanner.textContent = '';
+}
+
+saveBtn.addEventListener('click', async () => {
+  hideError();
+
+  // Optimistic UI
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saved!';
+
+  const payload = {
+    url:         currentUrl,
+    title:       currentTitle,
+    description: noteInput.value.trim(),
+    tagIds:      selectedTags.map(t => t.id),
+    listId:      listSelect.value || null,
+  };
+
+  chrome.runtime.sendMessage({ action: 'createBookmark', payload }, (resp) => {
+    if (resp?.ok) {
+      setTimeout(() => window.close(), 800);
+    } else {
+      showError(resp?.error ?? 'Could not save — please try again.');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+    }
+  });
+});
