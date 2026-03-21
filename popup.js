@@ -9,18 +9,19 @@ let cache                = { tags: [], lists: [], trie: null, invertedIndex: {} 
 let activeSuggestionIndex = -1;
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
-const unconfigured   = document.getElementById('unconfigured');
-const mainForm       = document.getElementById('mainForm');
-const pageTitleEl    = document.getElementById('pageTitle');
-const listSelect     = document.getElementById('listSelect');
-const noteInput      = document.getElementById('noteInput');
-const tagInput       = document.getElementById('tagInput');
-const chipsRow       = document.getElementById('chipsRow');
-const suggestions    = document.getElementById('suggestions');
-const saveBtn        = document.getElementById('saveBtn');
-const errorBanner    = document.getElementById('errorBanner');
-const gearBtn        = document.getElementById('gearBtn');
-const openOptionsBtn = document.getElementById('openOptionsBtn');
+const unconfigured       = document.getElementById('unconfigured');
+const mainForm           = document.getElementById('mainForm');
+const pageTitleEl        = document.getElementById('pageTitle');
+const alreadySavedNotice = document.getElementById('alreadySavedNotice');
+const listSelect         = document.getElementById('listSelect');
+const noteInput          = document.getElementById('noteInput');
+const tagInput           = document.getElementById('tagInput');
+const chipsRow           = document.getElementById('chipsRow');
+const suggestions        = document.getElementById('suggestions');
+const saveBtn            = document.getElementById('saveBtn');
+const errorBanner        = document.getElementById('errorBanner');
+const gearBtn            = document.getElementById('gearBtn');
+const openOptionsBtn     = document.getElementById('openOptionsBtn');
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
@@ -37,7 +38,7 @@ async function init() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentUrl   = tab.url   ?? '';
   currentTitle = tab.title ?? '';
-  pageTitleEl.textContent = currentTitle;
+  pageTitleEl.value = currentTitle;
   noteInput.focus();
 
   // Try to get selected text from content script (non-blocking)
@@ -50,6 +51,12 @@ async function init() {
   // Load cache for list dropdown and tag search
   cache = await getCache();
   renderListDropdown(cache.lists);
+
+  // Warn if this URL was already bookmarked
+  if (cache.bookmarkedUrls.includes(currentUrl)) {
+    alreadySavedNotice.classList.add('visible');
+    saveBtn.textContent = 'Save again';
+  }
 }
 
 function renderListDropdown(lists) {
@@ -226,7 +233,7 @@ saveBtn.addEventListener('click', () => {
 
   const payload = {
     url:         currentUrl,
-    title:       currentTitle,
+    title:       pageTitleEl.value.trim() || currentTitle,
     description: noteInput.value.trim(),
     tagIds:      selectedTags.map(t => t.id),
     listId:      listSelect.value || null,
@@ -250,10 +257,12 @@ saveBtn.addEventListener('click', () => {
 });
 
 // ─── Global Enter → Save ──────────────────────────────────────────────────────
+// Enter saves from: title input, list select, save button, or anywhere else.
+// Enter does NOT save from: note textarea (newline) or tag input (handled by tag keydown).
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
-  if (document.activeElement === noteInput) return; // Enter = newline in textarea
-  if (document.activeElement === tagInput) return;  // handled by tagInput keydown
+  if (document.activeElement === noteInput) return;
+  if (document.activeElement === tagInput) return;
   e.preventDefault();
   saveBtn.click();
 });

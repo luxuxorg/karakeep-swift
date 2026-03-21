@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Purple rounded background -->
+  <rect width="128" height="128" rx="24" fill="#6c63ff"/>
+  <!-- Bookmark ribbon shape -->
+  <path d="M34 18 L94 18 L94 108 L64 90 L34 108 Z" fill="white" fill-opacity="0.95"/>
+</svg>

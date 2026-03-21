@@ -20,17 +20,19 @@
     </div>
 
     <div class="form">
-      <div class="page-title" id="pageTitle"></div>
+      <div class="already-saved-notice" id="alreadySavedNotice">Already bookmarked — save again?</div>
 
-      <textarea class="note-textarea" id="noteInput" rows="3" placeholder="Add a note…"></textarea>
+      <input class="page-title" id="pageTitle" type="text" aria-label="Bookmark title" autocomplete="off">
+
+      <textarea class="note-textarea" id="noteInput" rows="3" placeholder="Add a note…" aria-label="Note"></textarea>
 
       <div class="tags-area">
         <div class="chips-row" id="chipsRow"></div>
-        <input class="tag-input" id="tagInput" type="text" placeholder="Add tags…" autocomplete="off">
-        <div class="suggestions" id="suggestions"></div>
+        <input class="tag-input" id="tagInput" type="text" placeholder="Add tags…" autocomplete="off" aria-label="Add tags">
+        <div class="suggestions" id="suggestions" role="listbox" aria-label="Tag suggestions"></div>
       </div>
 
-      <select class="list-select" id="listSelect"></select>
+      <select class="list-select" id="listSelect" aria-label="List"></select>
 
       <button class="save-btn" id="saveBtn">Save</button>
     </div>

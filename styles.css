@@ -12,6 +12,9 @@
   --color-error-bg:    #fef2f2;
   --color-error-text:  #dc2626;
   --color-error-border:#fca5a5;
+  --color-warn-bg:     #fef9c3;
+  --color-warn-border: #fde047;
+  --color-warn-text:   #713f12;
   --radius-sm:         4px;
   --radius-md:         6px;
   --radius-pill:       999px;
@@ -28,6 +31,9 @@
     --color-error-bg:    #450a0a;
     --color-error-text:  #fca5a5;
     --color-error-border:#7f1d1d;
+    --color-warn-bg:     #422006;
+    --color-warn-border: #92400e;
+    --color-warn-text:   #fbbf24;
   }
 }
 
@@ -63,15 +69,41 @@ body {
 /* ── Form ────────────────────────────────────────────────────── */
 .form { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
 
-/* ── Page title ──────────────────────────────────────────────── */
+/* ── Page title (editable input) ─────────────────────────────── */
 .page-title {
+  width: 100%;
   font-size: 14px;
   font-weight: 500;
   color: var(--color-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  font-family: inherit;
+  /* truncate unfocused text */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.page-title:focus {
+  background: var(--color-bg-input);
+  border-color: var(--color-accent);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* ── Already-saved notice ────────────────────────────────────── */
+.already-saved-notice {
+  display: none;
+  background: var(--color-warn-bg);
+  border: 1px solid var(--color-warn-border);
+  color: var(--color-warn-text);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  font-size: 13px;
+}
+.already-saved-notice.visible { display: block; }
 
 /* ── List select ─────────────────────────────────────────────── */
 .list-select {
