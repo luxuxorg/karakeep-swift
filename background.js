@@ -97,3 +97,62 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     updateBadge(tabId, tab.url);
   }
 });
+
+// ─── Create Bookmark ──────────────────────────────────────────────────────────
+
+async function createBookmark(url, title, description, tagIds, listId) {
+  const data = await apiFetch('/api/v1/bookmarks', {
+    method: 'POST',
+    body: JSON.stringify({ url, title, description, tagIds, listId }),
+  });
+
+  // Update bookmarkedUrls cache
+  const result = await chrome.storage.local.get(STORAGE.BOOKMARKED);
+  const urls = result[STORAGE.BOOKMARKED] ?? [];
+  if (!urls.includes(url)) urls.push(url);
+  await chrome.storage.local.set({
+    [STORAGE.BOOKMARKED]: urls,
+    [STORAGE.LAST_TAGS]:  tagIds ?? [],
+  });
+
+  // Refresh badge for any tab showing this URL
+  // Note: chrome.tabs.query requires a match pattern, not a raw URL.
+  // Query all tabs and filter by exact URL instead.
+  const allTabs = await chrome.tabs.query({});
+  for (const tab of allTabs) {
+    if (tab.url === url) updateBadge(tab.id, tab.url);
+  }
+
+  return data;
+}
+
+// ─── Message Router ───────────────────────────────────────────────────────────
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.action === 'createBookmark') {
+    const { url, title, description, tagIds, listId } = msg.payload;
+    createBookmark(url, title, description, tagIds, listId)
+      .then(() => sendResponse({ ok: true }))
+      .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true; // keep channel open for async response
+  }
+
+  if (msg.action === 'refreshCache') {
+    refreshCache().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+});
+
+// ─── Silent Save (Ctrl+Shift+S) ───────────────────────────────────────────────
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== 'silent-save') return;
+  chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+    const tab = tabs[0];
+    if (!tab?.url) return;
+    const result = await chrome.storage.local.get(STORAGE.LAST_TAGS);
+    const lastUsedTags = result[STORAGE.LAST_TAGS] ?? [];
+    createBookmark(tab.url, tab.title ?? '', '', lastUsedTags, null)
+      .catch(() => {}); // silently swallow errors
+  });
+});
