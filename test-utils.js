@@ -163,7 +163,7 @@ assert(s2.apiKey === 'abc123', 'saveSettings/getSettings round-trip: apiKey');
 const c1 = await getCache();
 assert(Array.isArray(c1.tags) && c1.tags.length === 0, 'getCache() cold: tags is []');
 assert(Array.isArray(c1.lists) && c1.lists.length === 0, 'getCache() cold: lists is []');
-assert(Array.isArray(c1.bookmarkedUrls) && c1.bookmarkedUrls.length === 0, 'getCache() cold: bookmarkedUrls is []');
+assert(typeof c1.bookmarkedItems === 'object' && !Array.isArray(c1.bookmarkedItems), 'getCache() cold: bookmarkedItems is {}');
 assert(Array.isArray(c1.lastUsedTags) && c1.lastUsedTags.length === 0, 'getCache() cold: lastUsedTags is []');
 assert(typeof c1.trie.search === 'function', 'getCache() cold: trie is a live Trie instance');
 assert(typeof c1.invertedIndex === 'object', 'getCache() cold: invertedIndex is plain object');

@@ -47,8 +47,19 @@ body {
   width: 480px;
 }
 
-/* ── Focus visible ───────────────────────────────────────────── */
+/* ── Focus visible (WCAG 2.4.11) ────────────────────────────── */
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* ── Visually hidden (accessible labels) ────────────────────── */
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ── Header ─────────────────────────────────────────────────── */
 .header {
@@ -127,7 +138,7 @@ body {
   font-size: 14px;
   padding: 6px 8px;
   resize: vertical;
-  min-height: 56px;
+  min-height: 112px;
   font-family: inherit;
 }
 .note-textarea:focus { border-color: var(--color-accent); }

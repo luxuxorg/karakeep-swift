@@ -152,7 +152,8 @@ const STORAGE_KEYS = {
   LISTS: 'lists',
   TAG_TRIE: 'tagTrie',
   TAG_INVERTED_INDEX: 'tagInvertedIndex',
-  BOOKMARKED_URLS: 'bookmarkedUrls',
+  // Stores { [url]: { id, title, description, tagIds, listId } } — replaces old bookmarkedUrls string[]
+  BOOKMARKED_ITEMS: 'bookmarkedItems',
   LAST_USED_TAGS: 'lastUsedTags',
 };
 
@@ -173,7 +174,7 @@ export async function saveSettings(settings) {
  *   lists: Array<{id:string,name:string}>,
  *   trie: Trie,
  *   invertedIndex: Object,
- *   bookmarkedUrls: string[],
+ *   bookmarkedItems: { [url: string]: { id:string, title:string, description:string, tagIds:string[], listId:string|null } },
  *   lastUsedTags: string[]
  * }>}
  */
@@ -183,19 +184,19 @@ export async function getCache() {
     STORAGE_KEYS.LISTS,
     STORAGE_KEYS.TAG_TRIE,
     STORAGE_KEYS.TAG_INVERTED_INDEX,
-    STORAGE_KEYS.BOOKMARKED_URLS,
+    STORAGE_KEYS.BOOKMARKED_ITEMS,
     STORAGE_KEYS.LAST_USED_TAGS,
   ];
   const result = await chrome.storage.local.get(keys);
   return {
-    tags:           result[STORAGE_KEYS.TAGS]               ?? [],
-    lists:          result[STORAGE_KEYS.LISTS]              ?? [],
-    trie:           result[STORAGE_KEYS.TAG_TRIE]
-                      ? Trie.deserialize(result[STORAGE_KEYS.TAG_TRIE])
-                      : new Trie(),
-    invertedIndex:  result[STORAGE_KEYS.TAG_INVERTED_INDEX] ?? {},
-    bookmarkedUrls: result[STORAGE_KEYS.BOOKMARKED_URLS]    ?? [],
-    lastUsedTags:   result[STORAGE_KEYS.LAST_USED_TAGS]     ?? [],
+    tags:            result[STORAGE_KEYS.TAGS]               ?? [],
+    lists:           result[STORAGE_KEYS.LISTS]              ?? [],
+    trie:            result[STORAGE_KEYS.TAG_TRIE]
+                       ? Trie.deserialize(result[STORAGE_KEYS.TAG_TRIE])
+                       : new Trie(),
+    invertedIndex:   result[STORAGE_KEYS.TAG_INVERTED_INDEX] ?? {},
+    bookmarkedItems: result[STORAGE_KEYS.BOOKMARKED_ITEMS]   ?? {},
+    lastUsedTags:    result[STORAGE_KEYS.LAST_USED_TAGS]     ?? [],
   };
 }
 

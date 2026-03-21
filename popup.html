@@ -6,39 +6,50 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Not-configured state (shown when settings are missing) -->
-  <div class="unconfigured" id="unconfigured" style="display:none">
-    <p>Configure Karakeep before saving.</p>
-    <button id="openOptionsBtn">Open Settings</button>
-  </div>
+
+  <!-- Not-configured state -->
+  <main id="unconfigured" aria-label="Setup required" style="display:none">
+    <div class="unconfigured">
+      <p>Configure Karakeep before saving.</p>
+      <button id="openOptionsBtn">Open Settings</button>
+    </div>
+  </main>
 
   <!-- Main form -->
-  <div id="mainForm" style="display:none">
+  <main id="mainForm" aria-label="Save bookmark" style="display:none">
     <div class="header">
-      <span class="header-title">Karakeep</span>
-      <button class="header-gear" id="gearBtn" title="Settings">⚙</button>
+      <span class="header-title" aria-hidden="true">Karakeep</span>
+      <button class="header-gear" id="gearBtn" aria-label="Open settings">⚙</button>
     </div>
 
     <div class="form">
-      <div class="already-saved-notice" id="alreadySavedNotice">Already bookmarked — save again?</div>
+      <!-- Already-bookmarked notice, announced when shown -->
+      <div class="already-saved-notice" id="alreadySavedNotice" role="status" aria-live="polite"></div>
 
-      <input class="page-title" id="pageTitle" type="text" aria-label="Bookmark title" autocomplete="off">
+      <label for="pageTitle" class="visually-hidden">Bookmark title</label>
+      <input class="page-title" id="pageTitle" type="text" autocomplete="off">
 
-      <textarea class="note-textarea" id="noteInput" rows="3" placeholder="Add a note…" aria-label="Note"></textarea>
+      <label for="noteInput" class="visually-hidden">Note</label>
+      <textarea class="note-textarea" id="noteInput" rows="6" placeholder="Add a note…"></textarea>
 
       <div class="tags-area">
-        <div class="chips-row" id="chipsRow"></div>
-        <input class="tag-input" id="tagInput" type="text" placeholder="Add tags…" autocomplete="off" aria-label="Add tags">
+        <div class="chips-row" id="chipsRow" aria-label="Selected tags" role="group"></div>
+        <label for="tagInput" class="visually-hidden">Add tags</label>
+        <input class="tag-input" id="tagInput" type="text" placeholder="Add tags…" autocomplete="off"
+               role="combobox" aria-expanded="false" aria-haspopup="listbox"
+               aria-controls="suggestions" aria-autocomplete="list">
         <div class="suggestions" id="suggestions" role="listbox" aria-label="Tag suggestions"></div>
       </div>
 
-      <select class="list-select" id="listSelect" aria-label="List"></select>
+      <label for="listSelect" class="visually-hidden">List</label>
+      <select class="list-select" id="listSelect"></select>
 
       <button class="save-btn" id="saveBtn">Save</button>
     </div>
 
-    <div class="error-banner" id="errorBanner"></div>
-  </div>
+    <!-- Error announced immediately via role="alert" -->
+    <div class="error-banner" id="errorBanner" role="alert" aria-live="assertive"></div>
+  </main>
 
   <script type="module" src="popup.js"></script>
 </body>

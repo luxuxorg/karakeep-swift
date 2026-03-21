@@ -1,42 +1,51 @@
 // background.js
-import { apiFetch, buildInvertedIndex, Trie, getCache } from './utils.js';
+import { apiFetch, buildInvertedIndex, Trie } from './utils.js';
 
 const STORAGE = {
-  TAGS:          'tags',
-  LISTS:         'lists',
-  TAG_TRIE:      'tagTrie',
-  TAG_INDEX:     'tagInvertedIndex',
-  BOOKMARKED:    'bookmarkedUrls',
-  LAST_TAGS:     'lastUsedTags',
+  TAGS:       'tags',
+  LISTS:      'lists',
+  TAG_TRIE:   'tagTrie',
+  TAG_INDEX:  'tagInvertedIndex',
+  // { [url]: { id, title, description, tagIds, listId } }
+  BOOKMARKED: 'bookmarkedItems',
+  LAST_TAGS:  'lastUsedTags',
 };
 
 // ─── Cache Refresh ────────────────────────────────────────────────────────────
 
-async function fetchAllBookmarkUrls() {
-  const urls = [];
+async function fetchAllBookmarks() {
+  const items = {};
   let cursor = null;
   while (true) {
     const path = cursor
       ? `/api/v1/bookmarks?limit=100&cursor=${encodeURIComponent(cursor)}`
       : '/api/v1/bookmarks?limit=100';
     const data = await apiFetch(path);
-    const items = data.bookmarks ?? data.items ?? data ?? [];
-    for (const b of items) {
-      if (b.url) urls.push(b.url);
+    const bookmarks = data.bookmarks ?? data.items ?? data ?? [];
+    for (const b of bookmarks) {
+      const url = b.url ?? b.content?.url;
+      if (url) {
+        items[url] = {
+          id:          b.id,
+          title:       b.title ?? '',
+          description: b.note ?? b.description ?? '',
+          tagIds:      (b.tags ?? []).map(t => t.id),
+          listId:      b.listId ?? (b.lists ?? [])[0]?.id ?? null,
+        };
+      }
     }
-    // Stop if no next cursor or empty page
     cursor = data.nextCursor ?? data.cursor ?? null;
-    if (!cursor || items.length === 0) break;
+    if (!cursor || bookmarks.length === 0) break;
   }
-  return urls;
+  return items;
 }
 
 async function refreshCache() {
   try {
-    const [tagsData, listsData, bookmarkUrls] = await Promise.all([
+    const [tagsData, listsData, bookmarkedItems] = await Promise.all([
       apiFetch('/api/v1/tags'),
       apiFetch('/api/v1/lists'),
-      fetchAllBookmarkUrls(),
+      fetchAllBookmarks(),
     ]);
 
     const tags  = tagsData.tags  ?? tagsData  ?? [];
@@ -51,7 +60,7 @@ async function refreshCache() {
       [STORAGE.LISTS]:      lists,
       [STORAGE.TAG_TRIE]:   trie.serialize(),
       [STORAGE.TAG_INDEX]:  invertedIndex,
-      [STORAGE.BOOKMARKED]: bookmarkUrls,
+      [STORAGE.BOOKMARKED]: bookmarkedItems,
     });
   } catch (err) {
     // Settings not yet configured or network error — fail silently
@@ -76,9 +85,9 @@ async function updateBadge(tabId, url) {
     return;
   }
   const result = await chrome.storage.local.get(STORAGE.BOOKMARKED);
-  const bookmarkedUrls = result[STORAGE.BOOKMARKED] ?? [];
-  if (bookmarkedUrls.includes(url)) {
-    // A single space renders as a visible colored dot; empty string would hide the badge entirely
+  const bookmarkedItems = result[STORAGE.BOOKMARKED] ?? {};
+  if (bookmarkedItems[url]) {
+    // A single space renders as a visible colored dot; empty string hides the badge
     chrome.action.setBadgeText({ text: ' ', tabId });
     chrome.action.setBadgeBackgroundColor({ color: '#22c55e', tabId });
   } else {
@@ -99,6 +108,15 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
+// ─── Bookmark helpers ─────────────────────────────────────────────────────────
+
+async function updateBadgeForUrl(url) {
+  const allTabs = await chrome.tabs.query({});
+  for (const tab of allTabs) {
+    if (tab.url === url) updateBadge(tab.id, tab.url);
+  }
+}
+
 // ─── Create Bookmark ──────────────────────────────────────────────────────────
 
 async function createBookmark(url, title, description, tagIds, listId) {
@@ -107,23 +125,35 @@ async function createBookmark(url, title, description, tagIds, listId) {
     body: JSON.stringify({ type: 'link', url, title, description, tagIds, listId }),
   });
 
-  // Update bookmarkedUrls cache
   const result = await chrome.storage.local.get(STORAGE.BOOKMARKED);
-  const urls = result[STORAGE.BOOKMARKED] ?? [];
-  if (!urls.includes(url)) urls.push(url);
+  const items = result[STORAGE.BOOKMARKED] ?? {};
+  items[url] = { id: data.id, title, description, tagIds: tagIds ?? [], listId };
   await chrome.storage.local.set({
-    [STORAGE.BOOKMARKED]: urls,
+    [STORAGE.BOOKMARKED]: items,
     [STORAGE.LAST_TAGS]:  tagIds ?? [],
   });
 
-  // Refresh badge for any tab showing this URL
-  // Note: chrome.tabs.query requires a match pattern, not a raw URL.
-  // Query all tabs and filter by exact URL instead.
-  const allTabs = await chrome.tabs.query({});
-  for (const tab of allTabs) {
-    if (tab.url === url) updateBadge(tab.id, tab.url);
-  }
+  await updateBadgeForUrl(url);
+  return data;
+}
 
+// ─── Update Bookmark ──────────────────────────────────────────────────────────
+
+async function updateBookmark(id, url, title, description, tagIds, listId) {
+  const data = await apiFetch(`/api/v1/bookmarks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title, description, tagIds, listId }),
+  });
+
+  const result = await chrome.storage.local.get(STORAGE.BOOKMARKED);
+  const items = result[STORAGE.BOOKMARKED] ?? {};
+  items[url] = { id, title, description, tagIds: tagIds ?? [], listId };
+  await chrome.storage.local.set({
+    [STORAGE.BOOKMARKED]: items,
+    [STORAGE.LAST_TAGS]:  tagIds ?? [],
+  });
+
+  await updateBadgeForUrl(url);
   return data;
 }
 
@@ -136,6 +166,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .then(() => sendResponse({ ok: true }))
       .catch(err => sendResponse({ ok: false, error: err.message }));
     return true; // keep channel open for async response
+  }
+
+  if (msg.action === 'updateBookmark') {
+    const { id, url, title, description, tagIds, listId } = msg.payload;
+    updateBookmark(id, url, title, description, tagIds, listId)
+      .then(() => sendResponse({ ok: true }))
+      .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true;
   }
 
   if (msg.action === 'refreshCache') {

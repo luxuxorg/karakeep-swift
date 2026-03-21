@@ -2,11 +2,12 @@
 import { getSettings, getCache, searchTags } from './utils.js';
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let currentUrl           = '';
-let currentTitle         = '';
-let selectedTags         = []; // [{ id, name }]
-let cache                = { tags: [], lists: [], trie: null, invertedIndex: {} };
+let currentUrl            = '';
+let currentTitle          = '';
+let selectedTags          = []; // [{ id, name }]
+let cache                 = { tags: [], lists: [], trie: null, invertedIndex: {} };
 let activeSuggestionIndex = -1;
+let alreadySavedId        = null; // bookmark ID if URL is already in cache
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 const unconfigured       = document.getElementById('unconfigured');
@@ -29,33 +30,54 @@ async function init() {
 
   if (!settings.serverUrl || !settings.apiKey) {
     unconfigured.style.display = '';
+    openOptionsBtn?.focus();
     return;
   }
 
   mainForm.style.display = '';
 
-  // Instant: get tab info immediately
+  // Instant: get tab info
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentUrl   = tab.url   ?? '';
   currentTitle = tab.title ?? '';
   pageTitleEl.value = currentTitle;
+
   noteInput.focus();
 
   // Try to get selected text from content script (non-blocking)
-  // lastError must be consumed to suppress "receiving end does not exist" on restricted pages
+  // lastError must be consumed to suppress console warning on restricted pages
   chrome.tabs.sendMessage(tab.id, { action: 'getSelection' }, (resp) => {
     if (chrome.runtime.lastError) return;
     if (resp?.selection) noteInput.value = resp.selection;
   });
 
-  // Load cache for list dropdown and tag search
+  // Load cache
   cache = await getCache();
   renderListDropdown(cache.lists);
 
-  // Warn if this URL was already bookmarked
-  if (cache.bookmarkedUrls.includes(currentUrl)) {
+  // Prefill from stored bookmark if URL is already saved
+  const stored = cache.bookmarkedItems[currentUrl];
+  if (stored) {
+    alreadySavedId = stored.id;
+
+    // Prefill fields from stored data
+    pageTitleEl.value = stored.title || currentTitle;
+    // Only overwrite note if not already prefilled by getSelection
+    if (!noteInput.value) noteInput.value = stored.description || '';
+
+    // Prefill tags: look up full tag objects from cache
+    for (const id of (stored.tagIds ?? [])) {
+      const tag = cache.tags.find(t => t.id === id) ?? { id, name: id };
+      addTag(tag);
+    }
+
+    // Set list selection
+    if (stored.listId) listSelect.value = stored.listId;
+
+    // Show notice and update button
+    alreadySavedNotice.textContent = 'Already bookmarked — editing will update it.';
     alreadySavedNotice.classList.add('visible');
-    saveBtn.textContent = 'Save again';
+    saveBtn.textContent = 'Update bookmark';
   }
 }
 
@@ -81,11 +103,12 @@ function renderChips() {
   for (const tag of selectedTags) {
     const chip = document.createElement('span');
     chip.className = 'chip';
+    chip.setAttribute('role', 'listitem');
     chip.appendChild(document.createTextNode(tag.name));
     const btn = document.createElement('button');
     btn.className = 'chip-remove';
     btn.dataset.id = tag.id;
-    btn.setAttribute('aria-label', `Remove ${tag.name}`);
+    btn.setAttribute('aria-label', `Remove tag ${tag.name}`);
     btn.textContent = '×';
     chip.appendChild(btn);
     chipsRow.appendChild(chip);
@@ -121,11 +144,16 @@ function renderSuggestions(results) {
   suggestions.innerHTML = '';
   if (!results.length) {
     suggestions.classList.remove('open');
+    tagInput.setAttribute('aria-expanded', 'false');
+    tagInput.removeAttribute('aria-activedescendant');
     return;
   }
-  for (const tag of results) {
+  results.forEach((tag, i) => {
     const item = document.createElement('div');
     item.className = 'suggestion-item';
+    item.id = `suggestion-${i}`;
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-selected', 'false');
     item.textContent = tag.name;
     item.dataset.id   = tag.id;
     item.dataset.name = tag.name;
@@ -134,20 +162,30 @@ function renderSuggestions(results) {
       acceptSuggestion(tag);
     });
     suggestions.appendChild(item);
-  }
+  });
   suggestions.classList.add('open');
+  tagInput.setAttribute('aria-expanded', 'true');
 }
 
 function updateActiveSuggestion() {
-  suggestions.querySelectorAll('.suggestion-item').forEach((item, i) => {
-    item.classList.toggle('active', i === activeSuggestionIndex);
+  suggestions.querySelectorAll('[role="option"]').forEach((item, i) => {
+    const active = i === activeSuggestionIndex;
+    item.classList.toggle('active', active);
+    item.setAttribute('aria-selected', active ? 'true' : 'false');
   });
+  if (activeSuggestionIndex >= 0) {
+    tagInput.setAttribute('aria-activedescendant', `suggestion-${activeSuggestionIndex}`);
+  } else {
+    tagInput.removeAttribute('aria-activedescendant');
+  }
 }
 
 function closeSuggestions() {
   activeSuggestionIndex = -1;
   suggestions.classList.remove('open');
   suggestions.innerHTML = '';
+  tagInput.setAttribute('aria-expanded', 'false');
+  tagInput.removeAttribute('aria-activedescendant');
 }
 
 function acceptSuggestion(tag) {
@@ -159,7 +197,7 @@ function acceptSuggestion(tag) {
 }
 
 function acceptActiveSuggestion() {
-  const items = suggestions.querySelectorAll('.suggestion-item');
+  const items = suggestions.querySelectorAll('[role="option"]');
   if (!items.length) return;
   const target = activeSuggestionIndex >= 0 ? items[activeSuggestionIndex] : items[0];
   if (target) acceptSuggestion({ id: target.dataset.id, name: target.dataset.name });
@@ -177,7 +215,7 @@ tagInput.addEventListener('keydown', (e) => {
 
   if (e.key === 'ArrowDown' && open) {
     e.preventDefault();
-    const count = suggestions.querySelectorAll('.suggestion-item').length;
+    const count = suggestions.querySelectorAll('[role="option"]').length;
     activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, count - 1);
     updateActiveSuggestion();
     return;
@@ -198,6 +236,9 @@ tagInput.addEventListener('keydown', (e) => {
     if (tagInput.value.trim()) {
       addRawTag(tagInput.value);
       tagInput.value = '';
+    } else {
+      // Empty tag input + Enter + dropdown closed → save
+      saveBtn.click();
     }
     return;
   }
@@ -239,11 +280,15 @@ saveBtn.addEventListener('click', () => {
     listId:      listSelect.value || null,
   };
 
-  chrome.runtime.sendMessage({ action: 'createBookmark', payload }, (resp) => {
+  const message = alreadySavedId
+    ? { action: 'updateBookmark', payload: { id: alreadySavedId, ...payload } }
+    : { action: 'createBookmark', payload };
+
+  chrome.runtime.sendMessage(message, (resp) => {
     if (chrome.runtime.lastError) {
       showError('Extension error — please reload the popup.');
       saveBtn.disabled = false;
-      saveBtn.textContent = 'Save';
+      saveBtn.textContent = alreadySavedId ? 'Update bookmark' : 'Save';
       return;
     }
     if (resp?.ok) {
@@ -251,18 +296,12 @@ saveBtn.addEventListener('click', () => {
     } else {
       showError(resp?.error ?? 'Could not save — please try again.');
       saveBtn.disabled = false;
-      saveBtn.textContent = 'Save';
+      saveBtn.textContent = alreadySavedId ? 'Update bookmark' : 'Save';
     }
   });
 });
 
-// ─── Global Enter → Save ──────────────────────────────────────────────────────
-// Enter saves from: title input, list select, save button, or anywhere else.
-// Enter does NOT save from: note textarea (newline) or tag input (handled by tag keydown).
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter') return;
-  if (document.activeElement === noteInput) return;
-  if (document.activeElement === tagInput) return;
-  e.preventDefault();
-  saveBtn.click();
-});
+// ─── Global keyboard: Enter on save button fires natively via browser.
+// Only extra case: Enter in tag input when empty + no dropdown open.
+// (Handled inside tagInput keydown above.)
+// No global document Enter handler — prevents accidental saves from title/list.
