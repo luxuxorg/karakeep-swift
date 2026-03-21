@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Karakeep — Options</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="options-body">
+    <h1>Karakeep Settings</h1>
+
+    <div class="field">
+      <label for="serverUrl">Server URL</label>
+      <input type="url" id="serverUrl" placeholder="https://karakeep.example.com" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label for="apiKey">API Key</label>
+      <input type="password" id="apiKey" placeholder="Your API key" autocomplete="off">
+    </div>
+
+    <div class="options-actions">
+      <button class="btn-primary" id="saveBtn">Save</button>
+      <button class="btn-secondary" id="testBtn">Test Connection</button>
+      <span class="status-msg" id="statusMsg"></span>
+    </div>
+  </div>
+  <script type="module" src="options.js"></script>
+</body>
+</html>
