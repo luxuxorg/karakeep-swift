@@ -1,6 +1,6 @@
 // test-utils.js — run with: node test-utils.js
 // Import only the Trie class (will fail until utils.js exists)
-import { Trie, buildInvertedIndex, searchTags } from './utils.js';
+import { Trie, buildInvertedIndex, searchTags, getSettings, saveSettings, getCache, apiFetch } from './utils.js';
 
 let passed = 0;
 let failed = 0;
@@ -129,6 +129,52 @@ const dupIdx = buildInvertedIndex(dupTags);
 // Both 'hel' and 'wor' fragments exist; for a fragment that only one name produces, id appears once
 const helloFragmentBucket = dupIdx['hel'] ?? [];
 assert(helloFragmentBucket.filter(id => id === 'dup').length === 1, 'duplicate id appears only once per bucket');
+
+// --- Storage helpers + apiFetch tests ---
+console.log('\nStorage helpers (mocked chrome.storage)');
+
+// Mock chrome.storage.local
+const store = {};
+globalThis.chrome = {
+  storage: {
+    local: {
+      get: (keys) => Promise.resolve(
+        Array.isArray(keys)
+          ? Object.fromEntries(keys.map(k => [k, store[k]]))
+          : { [keys]: store[keys] }
+      ),
+      set: (obj) => { Object.assign(store, obj); return Promise.resolve(); },
+    }
+  }
+};
+
+// getSettings — cold (returns defaults)
+const s1 = await getSettings();
+assert(s1.serverUrl === '', 'getSettings() returns empty serverUrl when unset');
+assert(s1.apiKey === '', 'getSettings() returns empty apiKey when unset');
+
+// saveSettings + getSettings round-trip
+await saveSettings({ serverUrl: 'https://example.com', apiKey: 'abc123' });
+const s2 = await getSettings();
+assert(s2.serverUrl === 'https://example.com', 'saveSettings/getSettings round-trip: serverUrl');
+assert(s2.apiKey === 'abc123', 'saveSettings/getSettings round-trip: apiKey');
+
+// getCache — cold (all fallbacks)
+const c1 = await getCache();
+assert(Array.isArray(c1.tags) && c1.tags.length === 0, 'getCache() cold: tags is []');
+assert(Array.isArray(c1.lists) && c1.lists.length === 0, 'getCache() cold: lists is []');
+assert(Array.isArray(c1.bookmarkedUrls) && c1.bookmarkedUrls.length === 0, 'getCache() cold: bookmarkedUrls is []');
+assert(Array.isArray(c1.lastUsedTags) && c1.lastUsedTags.length === 0, 'getCache() cold: lastUsedTags is []');
+assert(typeof c1.trie.search === 'function', 'getCache() cold: trie is a live Trie instance');
+assert(typeof c1.invertedIndex === 'object', 'getCache() cold: invertedIndex is plain object');
+
+// apiFetch — error on empty serverUrl
+try {
+  await apiFetch('/api/v1/tags', undefined, { serverUrl: '', apiKey: '' });
+  assert(false, 'apiFetch throws on empty serverUrl');
+} catch (e) {
+  assert(e instanceof Error, 'apiFetch throws Error on empty serverUrl');
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

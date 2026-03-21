@@ -143,3 +143,84 @@ export function searchTags(query, trie, invertedIndex, allTags) {
 
   return results;
 }
+
+// ─── Storage Helpers ──────────────────────────────────────────────────────────
+
+const STORAGE_KEYS = {
+  SETTINGS: 'settings',
+  TAGS: 'tags',
+  LISTS: 'lists',
+  TAG_TRIE: 'tagTrie',
+  TAG_INVERTED_INDEX: 'tagInvertedIndex',
+  BOOKMARKED_URLS: 'bookmarkedUrls',
+  LAST_USED_TAGS: 'lastUsedTags',
+};
+
+/** @returns {Promise<{ serverUrl: string, apiKey: string }>} */
+export async function getSettings() {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
+  return result[STORAGE_KEYS.SETTINGS] ?? { serverUrl: '', apiKey: '' };
+}
+
+/** @param {{ serverUrl: string, apiKey: string }} settings */
+export async function saveSettings(settings) {
+  await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: settings });
+}
+
+/**
+ * @returns {Promise<{
+ *   tags: Array<{id:string,name:string}>,
+ *   lists: Array<{id:string,name:string}>,
+ *   trie: Trie,
+ *   invertedIndex: Object,
+ *   bookmarkedUrls: string[],
+ *   lastUsedTags: string[]
+ * }>}
+ */
+export async function getCache() {
+  const keys = [
+    STORAGE_KEYS.TAGS,
+    STORAGE_KEYS.LISTS,
+    STORAGE_KEYS.TAG_TRIE,
+    STORAGE_KEYS.TAG_INVERTED_INDEX,
+    STORAGE_KEYS.BOOKMARKED_URLS,
+    STORAGE_KEYS.LAST_USED_TAGS,
+  ];
+  const result = await chrome.storage.local.get(keys);
+  return {
+    tags:           result[STORAGE_KEYS.TAGS]               ?? [],
+    lists:          result[STORAGE_KEYS.LISTS]              ?? [],
+    trie:           result[STORAGE_KEYS.TAG_TRIE]
+                      ? Trie.deserialize(result[STORAGE_KEYS.TAG_TRIE])
+                      : new Trie(),
+    invertedIndex:  result[STORAGE_KEYS.TAG_INVERTED_INDEX] ?? {},
+    bookmarkedUrls: result[STORAGE_KEYS.BOOKMARKED_URLS]    ?? [],
+    lastUsedTags:   result[STORAGE_KEYS.LAST_USED_TAGS]     ?? [],
+  };
+}
+
+// ─── API Fetch ────────────────────────────────────────────────────────────────
+
+/**
+ * @param {string} path
+ * @param {RequestInit} [options]
+ * @param {{ serverUrl: string, apiKey: string }} [settings]
+ */
+export async function apiFetch(path, options = {}, settings) {
+  const s = settings ?? await getSettings();
+  if (!s.serverUrl) throw new Error('Server URL is not configured.');
+  const url = s.serverUrl.replace(/\/$/, '') + path;
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${s.apiKey}`,
+      ...(options.headers ?? {}),
+    },
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+  }
+  return response.json();
+}
