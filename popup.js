@@ -189,7 +189,7 @@ function hideError() {
   errorBanner.textContent = '';
 }
 
-saveBtn.addEventListener('click', async () => {
+saveBtn.addEventListener('click', () => {
   hideError();
 
   // Optimistic UI
@@ -205,6 +205,12 @@ saveBtn.addEventListener('click', async () => {
   };
 
   chrome.runtime.sendMessage({ action: 'createBookmark', payload }, (resp) => {
+    if (chrome.runtime.lastError) {
+      showError('Extension error — please reload the popup.');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+      return;
+    }
     if (resp?.ok) {
       setTimeout(() => window.close(), 800);
     } else {
