@@ -70,7 +70,13 @@ function renderChips() {
   for (const tag of selectedTags) {
     const chip = document.createElement('span');
     chip.className = 'chip';
-    chip.innerHTML = `${tag.name}<button class="chip-remove" data-id="${tag.id}" aria-label="Remove ${tag.name}">×</button>`;
+    chip.appendChild(document.createTextNode(tag.name));
+    const btn = document.createElement('button');
+    btn.className = 'chip-remove';
+    btn.dataset.id = tag.id;
+    btn.setAttribute('aria-label', `Remove ${tag.name}`);
+    btn.textContent = '×';
+    chip.appendChild(btn);
     chipsRow.appendChild(chip);
   }
 }
@@ -139,7 +145,7 @@ function acceptTopSuggestion(tag) {
 
 tagInput.addEventListener('input', () => {
   const q = tagInput.value.trim();
-  if (!q) { closeSuggestions(); return; }
+  if (!q || !cache.trie) { closeSuggestions(); return; }
   const results = searchTags(q, cache.trie, cache.invertedIndex, cache.tags);
   renderSuggestions(results);
 });
