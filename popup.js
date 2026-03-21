@@ -2,10 +2,11 @@
 import { getSettings, getCache, searchTags } from './utils.js';
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let currentUrl   = '';
-let currentTitle = '';
-let selectedTags = []; // [{ id, name }]
-let cache        = { tags: [], lists: [], trie: null, invertedIndex: {} };
+let currentUrl           = '';
+let currentTitle         = '';
+let selectedTags         = []; // [{ id, name }]
+let cache                = { tags: [], lists: [], trie: null, invertedIndex: {} };
+let activeSuggestionIndex = -1;
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 const unconfigured   = document.getElementById('unconfigured');
@@ -37,6 +38,7 @@ async function init() {
   currentUrl   = tab.url   ?? '';
   currentTitle = tab.title ?? '';
   pageTitleEl.textContent = currentTitle;
+  noteInput.focus();
 
   // Try to get selected text from content script (non-blocking)
   // lastError must be consumed to suppress "receiving end does not exist" on restricted pages
@@ -108,6 +110,7 @@ function addRawTag(name) {
 // ─── Suggestions ──────────────────────────────────────────────────────────────
 
 function renderSuggestions(results) {
+  activeSuggestionIndex = -1;
   suggestions.innerHTML = '';
   if (!results.length) {
     suggestions.classList.remove('open');
@@ -121,29 +124,38 @@ function renderSuggestions(results) {
     item.dataset.name = tag.name;
     item.addEventListener('mousedown', (e) => {
       e.preventDefault(); // prevent blur before click registers
-      acceptTopSuggestion(tag);
+      acceptSuggestion(tag);
     });
     suggestions.appendChild(item);
   }
   suggestions.classList.add('open');
 }
 
+function updateActiveSuggestion() {
+  suggestions.querySelectorAll('.suggestion-item').forEach((item, i) => {
+    item.classList.toggle('active', i === activeSuggestionIndex);
+  });
+}
+
 function closeSuggestions() {
+  activeSuggestionIndex = -1;
   suggestions.classList.remove('open');
   suggestions.innerHTML = '';
 }
 
-function acceptTopSuggestion(tag) {
-  if (!tag) {
-    // fallback: take first item in suggestions
-    const first = suggestions.querySelector('.suggestion-item');
-    if (!first) return;
-    tag = { id: first.dataset.id, name: first.dataset.name };
-  }
+function acceptSuggestion(tag) {
   addTag(tag);
   tagInput.value = '';
+  activeSuggestionIndex = -1;
   closeSuggestions();
   tagInput.focus();
+}
+
+function acceptActiveSuggestion() {
+  const items = suggestions.querySelectorAll('.suggestion-item');
+  if (!items.length) return;
+  const target = activeSuggestionIndex >= 0 ? items[activeSuggestionIndex] : items[0];
+  if (target) acceptSuggestion({ id: target.dataset.id, name: target.dataset.name });
 }
 
 tagInput.addEventListener('input', () => {
@@ -154,19 +166,32 @@ tagInput.addEventListener('input', () => {
 });
 
 tagInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Tab' || (e.key === 'Enter' && suggestions.classList.contains('open'))) {
+  const open = suggestions.classList.contains('open');
+
+  if (e.key === 'ArrowDown' && open) {
     e.preventDefault();
-    const first = suggestions.querySelector('.suggestion-item');
-    if (first) {
-      acceptTopSuggestion({ id: first.dataset.id, name: first.dataset.name });
-    }
+    const count = suggestions.querySelectorAll('.suggestion-item').length;
+    activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, count - 1);
+    updateActiveSuggestion();
     return;
   }
-  if (e.key === 'Enter' && !suggestions.classList.contains('open')) {
+  if (e.key === 'ArrowUp' && open) {
     e.preventDefault();
-    addRawTag(tagInput.value);
-    tagInput.value = '';
-    closeSuggestions();
+    activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, -1);
+    updateActiveSuggestion();
+    return;
+  }
+  if (e.key === 'Tab' || (e.key === 'Enter' && open)) {
+    e.preventDefault();
+    acceptActiveSuggestion();
+    return;
+  }
+  if (e.key === 'Enter' && !open) {
+    e.preventDefault();
+    if (tagInput.value.trim()) {
+      addRawTag(tagInput.value);
+      tagInput.value = '';
+    }
     return;
   }
   if (e.key === 'Backspace' && !tagInput.value) {
@@ -222,4 +247,13 @@ saveBtn.addEventListener('click', () => {
       saveBtn.textContent = 'Save';
     }
   });
+});
+
+// ─── Global Enter → Save ──────────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (document.activeElement === noteInput) return; // Enter = newline in textarea
+  if (document.activeElement === tagInput) return;  // handled by tagInput keydown
+  e.preventDefault();
+  saveBtn.click();
 });
