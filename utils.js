@@ -77,16 +77,22 @@ export class Trie {
  * @returns {{ [fragment: string]: string[] }}
  */
 export function buildInvertedIndex(tags) {
-  const index = {};
+  // Use Sets during construction for O(1) dedup, convert to arrays for storage
+  const sets = {};
   for (const { id, name } of tags) {
     const lower = name.toLowerCase();
     for (let start = 0; start < lower.length; start++) {
       for (let len = 2; len <= 4 && start + len <= lower.length; len++) {
         const fragment = lower.slice(start, start + len);
-        if (!index[fragment]) index[fragment] = [];
-        if (!index[fragment].includes(id)) index[fragment].push(id);
+        if (!sets[fragment]) sets[fragment] = new Set();
+        sets[fragment].add(id);
       }
     }
+  }
+  // Convert Sets to arrays for JSON-serializable storage
+  const index = {};
+  for (const [fragment, set] of Object.entries(sets)) {
+    index[fragment] = Array.from(set);
   }
   return index;
 }
@@ -124,9 +130,12 @@ export function searchTags(query, trie, invertedIndex, allTags) {
   if (fragment.length >= 2) {
     for (const id of (invertedIndex[fragment] || [])) {
       if (!seen.has(id)) {
-        seen.add(id);
         const tag = allTags.find(t => t.id === id);
-        if (tag) results.push(tag);
+        // Post-filter: ensure the full query is actually a substring of the tag name
+        if (tag && tag.name.toLowerCase().includes(q)) {
+          seen.add(id);
+          results.push(tag);
+        }
       }
       if (results.length >= 5) return results;
     }

@@ -101,5 +101,34 @@ const r5 = searchTags('dev', trie3, idx, tags);
 const ids5 = r5.map(r => r.id);
 assert(new Set(ids5).size === ids5.length, 'searchTags deduplicates by id');
 
+// Edge cases
+assert(searchTags('', trie3, idx, tags).length === 0, 'searchTags("") returns empty');
+assert(searchTags('d', trie3, idx, tags).length >= 0, 'searchTags single char does not crash');
+
+// Query longer than 4 chars — no false positives
+const r6 = searchTags('typex', trie3, idx, tags);
+assert(r6.length === 0, 'searchTags("typex") returns no false positives (typescript does not match)');
+
+// Stronger cap test
+assert(r4.length === 5, 'searchTags returns exactly 5 results when more exist');
+
+// Prefix ordering: a tag matching by prefix appears before one matching only by substring
+const orderedTags = [
+  { id: 'prefix-match', name: 'developer' },
+  { id: 'substr-match', name: 'webdev' },
+];
+const orderedTrie = new Trie();
+const orderedIdx = buildInvertedIndex(orderedTags);
+orderedTags.forEach(tag => orderedTrie.insert(tag.name, tag.id));
+const ordered = searchTags('dev', orderedTrie, orderedIdx, orderedTags);
+assert(ordered[0].id === 'prefix-match', 'prefix match appears before substring-only match');
+
+// buildInvertedIndex: duplicate id does not appear twice in a bucket
+const dupTags = [{ id: 'dup', name: 'hello' }, { id: 'dup', name: 'world' }];
+const dupIdx = buildInvertedIndex(dupTags);
+// Both 'hel' and 'wor' fragments exist; for a fragment that only one name produces, id appears once
+const helloFragmentBucket = dupIdx['hel'] ?? [];
+assert(helloFragmentBucket.filter(id => id === 'dup').length === 1, 'duplicate id appears only once per bucket');
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
