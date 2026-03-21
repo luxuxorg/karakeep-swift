@@ -104,7 +104,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 async function createBookmark(url, title, description, tagIds, listId) {
   const data = await apiFetch('/api/v1/bookmarks', {
     method: 'POST',
-    body: JSON.stringify({ url, title, description, tagIds, listId }),
+    body: JSON.stringify({ type: 'link', url, title, description, tagIds, listId }),
   });
 
   // Update bookmarkedUrls cache
