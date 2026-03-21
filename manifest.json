@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Karakeep",
+  "version": "1.0.0",
+  "description": "Save bookmarks to your Karakeep instance",
+  "permissions": ["storage", "activeTab", "alarms", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "silent-save": {
+      "suggested_key": { "default": "Ctrl+Shift+S" },
+      "description": "Save current tab silently to Karakeep"
+    }
+  }
+}
