@@ -67,3 +67,33 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'refreshCache') refreshCache();
 });
+
+// ─── Badge ────────────────────────────────────────────────────────────────────
+
+async function updateBadge(tabId, url) {
+  if (!url || url.startsWith('chrome://')) {
+    chrome.action.setBadgeText({ text: '', tabId });
+    return;
+  }
+  const result = await chrome.storage.local.get(STORAGE.BOOKMARKED);
+  const bookmarkedUrls = result[STORAGE.BOOKMARKED] ?? [];
+  if (bookmarkedUrls.includes(url)) {
+    chrome.action.setBadgeText({ text: '', tabId });
+    chrome.action.setBadgeBackgroundColor({ color: '#22c55e', tabId });
+  } else {
+    chrome.action.setBadgeText({ text: '', tabId });
+    chrome.action.setBadgeBackgroundColor({ color: [0, 0, 0, 0], tabId });
+  }
+}
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  chrome.tabs.get(tabId, (tab) => {
+    if (tab?.url) updateBadge(tabId, tab.url);
+  });
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab?.url) {
+    updateBadge(tabId, tab.url);
+  }
+});
