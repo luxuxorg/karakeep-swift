@@ -1,32 +1,31 @@
 {
   "manifest_version": 3,
-  "name": "Karakeep",
+  "name": "Karakeep Swift",
+  "short_name": "Karakeep Swift",
   "version": "1.0.0",
-  "description": "Save bookmarks to your Karakeep instance",
-  "permissions": ["storage", "activeTab", "alarms", "tabs"],
-  "host_permissions": ["<all_urls>"],
+  "author": "Lutz Schmitt",
+  "description": "The swift Karakeep-Plugin. Stores tags and bookmark URLs locally for fast response, privacy friendly, security hardened.",
+  "permissions": ["storage", "activeTab", "alarms", "tabs", "scripting"],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
+  "optional_host_permissions": ["https://*/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "icons": {
-    "16": "icons/icon.svg",
-    "32": "icons/icon.svg",
-    "48": "icons/icon.svg",
-    "128": "icons/icon.svg"
+    "16": "icons/icon.png",
+    "32": "icons/icon.png",
+    "48": "icons/icon.png",
+    "128": "icons/icon.png"
   },
   "action": {
     "default_popup": "popup.html",
-    "default_icon": "icons/icon.svg"
+    "default_icon": {
+      "16": "icons/icon.png",
+      "32": "icons/icon.png"
+    }
   },
   "options_page": "options.html",
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ],
   "commands": {
     "silent-save": {
       "suggested_key": { "default": "Ctrl+Shift+S" },

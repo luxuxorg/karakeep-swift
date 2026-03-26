@@ -1,16 +1,28 @@
 // popup.js
-import { getSettings, getCache, searchTags } from './utils.js';
+import { getSettings, saveSettings, getCache, searchTags, apiFetch, normalizeUrl,
+         saveSessionApiKey } from './utils.js';
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let currentUrl            = '';
 let currentTitle          = '';
 let selectedTags          = []; // [{ id, name }]
-let cache                 = { tags: [], lists: [], trie: null, invertedIndex: {} };
+let cache                 = { tags: [], lists: [], trie: null, invertedIndex: {}, bookmarkedIndex: {} };
 let activeSuggestionIndex = -1;
 let alreadySavedId        = null; // bookmark ID if URL is already in cache
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 const unconfigured       = document.getElementById('unconfigured');
+const openOptionsBtn     = document.getElementById('openOptionsBtn');
+// Auth panel
+const authPanel          = document.getElementById('authPanel');
+const openLibraryBtnAuth = document.getElementById('openLibraryBtnAuth');
+const gearBtnAuth        = document.getElementById('gearBtnAuth');
+const pmServerUrl        = document.getElementById('pmServerUrl');
+const sessionApiKeyInput = document.getElementById('sessionApiKeyInput');
+const authError          = document.getElementById('authError');
+const useSessionBtn      = document.getElementById('useSessionBtn');
+const storePermBtn       = document.getElementById('storePermBtn');
+// Main form
 const mainForm           = document.getElementById('mainForm');
 const pageTitleEl        = document.getElementById('pageTitle');
 const alreadySavedNotice = document.getElementById('alreadySavedNotice');
@@ -22,21 +34,34 @@ const suggestions        = document.getElementById('suggestions');
 const saveBtn            = document.getElementById('saveBtn');
 const errorBanner        = document.getElementById('errorBanner');
 const gearBtn            = document.getElementById('gearBtn');
-const openOptionsBtn     = document.getElementById('openOptionsBtn');
+const openLibraryBtn     = document.getElementById('openLibraryBtn');
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
   const settings = await getSettings();
 
-  if (!settings.serverUrl || !settings.apiKey) {
+  if (!settings.serverUrl) {
     unconfigured.style.display = '';
     openOptionsBtn?.focus();
     return;
   }
 
-  mainForm.style.display = '';
+  if (!settings.apiKey) {
+    // Server configured but no key available — ask user to supply one
+    authPanel.style.display = '';
+    openLibraryBtnAuth.href = settings.serverUrl;
+    pmServerUrl.value = settings.serverUrl; // helps password managers associate the credential
+    sessionApiKeyInput.focus();
+    return;
+  }
 
-  // Instant: get tab info
+  await showMainForm(settings);
+}
+
+async function showMainForm(settings) {
+  mainForm.style.display = '';
+  openLibraryBtn.href = settings.serverUrl;
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentUrl   = tab.url   ?? '';
   currentTitle = tab.title ?? '';
@@ -44,40 +69,36 @@ async function init() {
 
   noteInput.focus();
 
-  // Try to get selected text from content script (non-blocking)
-  // lastError must be consumed to suppress console warning on restricted pages
-  chrome.tabs.sendMessage(tab.id, { action: 'getSelection' }, (resp) => {
-    if (chrome.runtime.lastError) return;
-    if (resp?.selection) noteInput.value = resp.selection;
-  });
+  // Get selected text on-demand via scripting API (no persistent content script needed)
+  chrome.scripting.executeScript({
+    target: { tabId: tab.id, allFrames: false },
+    func: () => window.getSelection().toString(),
+  }).then((results) => {
+    const text = results?.[0]?.result;
+    if (text) noteInput.value = text;
+  }).catch(() => {});
 
-  // Load cache
   cache = await getCache();
   renderListDropdown(cache.lists);
 
-  // Prefill from stored bookmark if URL is already saved
-  const stored = cache.bookmarkedItems[currentUrl];
-  if (stored) {
-    alreadySavedId = stored.id;
-
-    // Prefill fields from stored data
-    pageTitleEl.value = stored.title || currentTitle;
-    // Only overwrite note if not already prefilled by getSelection
-    if (!noteInput.value) noteInput.value = stored.description || '';
-
-    // Prefill tags: look up full tag objects from cache
-    for (const id of (stored.tagIds ?? [])) {
-      const tag = cache.tags.find(t => t.id === id) ?? { id, name: id };
-      addTag(tag);
-    }
-
-    // Set list selection
-    if (stored.listId) listSelect.value = stored.listId;
-
-    // Show notice and update button
-    alreadySavedNotice.textContent = 'Already bookmarked — editing will update it.';
-    alreadySavedNotice.classList.add('visible');
+  const bookmarkId = cache.bookmarkedIndex[normalizeUrl(currentUrl)];
+  if (bookmarkId) {
+    alreadySavedId = bookmarkId;
     saveBtn.textContent = 'Update bookmark';
+    alreadySavedNotice.textContent = 'Already bookmarked — loading details…';
+    alreadySavedNotice.classList.add('visible');
+
+    try {
+      const data = await apiFetch(`/api/v1/bookmarks/${bookmarkId}`, undefined, settings);
+      pageTitleEl.value = data.title || currentTitle;
+      if (!noteInput.value) noteInput.value = data.note ?? data.description ?? '';
+      for (const tag of (data.tags ?? [])) addTag({ id: tag.id, name: tag.name });
+      const listId = data.listId ?? (data.lists ?? [])[0]?.id ?? null;
+      if (listId) listSelect.value = listId;
+      alreadySavedNotice.textContent = 'Already bookmarked — editing will update it.';
+    } catch {
+      alreadySavedNotice.textContent = 'Already bookmarked — could not load details.';
+    }
   }
 }
 
@@ -92,7 +113,42 @@ function renderListDropdown(lists) {
 }
 
 gearBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
+gearBtnAuth.addEventListener('click', () => chrome.runtime.openOptionsPage());
 openOptionsBtn?.addEventListener('click', () => chrome.runtime.openOptionsPage());
+
+// ─── Auth panel ───────────────────────────────────────────────────────────────
+
+function showAuthError(msg) {
+  authError.textContent = msg;
+}
+
+function clearAuthError() {
+  authError.textContent = '';
+}
+
+useSessionBtn.addEventListener('click', async () => {
+  const key = sessionApiKeyInput.value.trim();
+  if (!key) { showAuthError('Please enter an API key.'); return; }
+  clearAuthError();
+  await saveSessionApiKey(key);
+  authPanel.style.display = 'none';
+  const settings = await getSettings();
+  await showMainForm(settings);
+});
+
+document.getElementById('authForm').addEventListener('submit', (e) => e.preventDefault());
+
+storePermBtn.addEventListener('click', async () => {
+  const key = sessionApiKeyInput.value.trim();
+  if (!key) { showAuthError('Please enter an API key.'); return; }
+  clearAuthError();
+  storePermBtn.disabled = true;
+  const settings = await getSettings();
+  await saveSettings({ serverUrl: settings.serverUrl, apiKey: key });
+  authPanel.style.display = 'none';
+  await showMainForm({ ...settings, apiKey: key });
+  storePermBtn.disabled = false;
+});
 
 init();
 
@@ -103,23 +159,47 @@ function renderChips() {
   for (const tag of selectedTags) {
     const chip = document.createElement('span');
     chip.className = 'chip';
-    chip.setAttribute('role', 'listitem');
+    chip.setAttribute('role', 'option');
+    chip.setAttribute('aria-selected', 'true');
+    chip.setAttribute('aria-label', `${tag.name} — press Delete to remove`);
+    chip.setAttribute('tabindex', '0');
+    chip.dataset.id = tag.id;
     chip.appendChild(document.createTextNode(tag.name));
     const btn = document.createElement('button');
     btn.className = 'chip-remove';
     btn.dataset.id = tag.id;
     btn.setAttribute('aria-label', `Remove tag ${tag.name}`);
+    btn.setAttribute('tabindex', '-1'); // mouse-only; keyboard uses chip itself
     btn.textContent = '×';
     chip.appendChild(btn);
     chipsRow.appendChild(chip);
   }
 }
 
+function removeChipById(id) {
+  const idx = selectedTags.findIndex(t => t.id === id);
+  selectedTags = selectedTags.filter(t => t.id !== id);
+  renderChips();
+  // Keep focus inside the chip row if chips remain, otherwise return to tag input
+  const chips = chipsRow.querySelectorAll('.chip');
+  if (chips.length > 0) {
+    chips[Math.min(idx, chips.length - 1)].focus();
+  } else {
+    tagInput.focus();
+  }
+}
+
 chipsRow.addEventListener('click', (e) => {
   if (e.target.classList.contains('chip-remove')) {
-    const id = e.target.dataset.id;
-    selectedTags = selectedTags.filter(t => t.id !== id);
-    renderChips();
+    removeChipById(e.target.dataset.id);
+  }
+});
+
+chipsRow.addEventListener('keydown', (e) => {
+  if (!e.target.classList.contains('chip')) return;
+  if (e.key === 'Delete' || e.key === 'Backspace' || e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    removeChipById(e.target.dataset.id);
   }
 });
 
@@ -226,9 +306,19 @@ tagInput.addEventListener('keydown', (e) => {
     updateActiveSuggestion();
     return;
   }
-  if (e.key === 'Tab' || (e.key === 'Enter' && open)) {
+  if (e.key === 'Enter' && open) {
     e.preventDefault();
     acceptActiveSuggestion();
+    return;
+  }
+  if (e.key === ',') {
+    e.preventDefault();
+    if (open) {
+      acceptActiveSuggestion(); // pick first proposed tag
+    } else if (tagInput.value.trim()) {
+      addRawTag(tagInput.value);
+      tagInput.value = '';
+    }
     return;
   }
   if (e.key === 'Enter' && !open) {
@@ -236,10 +326,8 @@ tagInput.addEventListener('keydown', (e) => {
     if (tagInput.value.trim()) {
       addRawTag(tagInput.value);
       tagInput.value = '';
-    } else {
-      // Empty tag input + Enter + dropdown closed → save
-      saveBtn.click();
     }
+    // Empty input + no dropdown → do nothing
     return;
   }
   if (e.key === 'Backspace' && !tagInput.value) {
@@ -301,7 +389,7 @@ saveBtn.addEventListener('click', () => {
   });
 });
 
-// ─── Global keyboard: Enter on save button fires natively via browser.
-// Only extra case: Enter in tag input when empty + no dropdown open.
-// (Handled inside tagInput keydown above.)
-// No global document Enter handler — prevents accidental saves from title/list.
+// ─── Keyboard summary ─────────────────────────────────────────────────────────
+// Save fires ONLY when the save button receives Enter/Space (native browser behaviour).
+// Tag input: Enter/comma → add tag; Tab → browser navigation (not intercepted).
+// No global document Enter handler.

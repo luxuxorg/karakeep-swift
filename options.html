@@ -4,11 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Karakeep — Options</title>
+  <link rel="icon" href="icons/icon.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="options-body">
-    <h1>Karakeep Settings</h1>
+    <h1><img src="icons/icon.png" alt="" class="options-logo" aria-hidden="true">Karakeep Settings</h1>
 
     <div class="field">
       <label for="serverUrl">Server URL</label>
@@ -17,7 +18,10 @@
 
     <div class="field">
       <label for="apiKey">API Key</label>
-      <input type="password" id="apiKey" placeholder="Your API key" autocomplete="off">
+      <div class="field-row">
+        <input type="password" id="apiKey" placeholder="Your API key" autocomplete="off">
+        <button class="btn-secondary" id="forgetKeyBtn" style="display:none">Forget key</button>
+      </div>
     </div>
 
     <div class="options-actions">

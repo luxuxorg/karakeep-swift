@@ -1,6 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <!-- Purple rounded background -->
-  <rect width="128" height="128" rx="24" fill="#6c63ff"/>
-  <!-- Bookmark ribbon shape -->
-  <path d="M34 18 L94 18 L94 108 L64 90 L34 108 Z" fill="white" fill-opacity="0.95"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 128 128" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <g transform="matrix(1.34355,0,0,1.34355,-36.4371,-35.7787)">
+        <path d="M115.271,26.63L34.239,26.63C29.868,26.63 27.12,29.378 27.12,33.749L27.12,114.351C27.12,119.105 29.485,121.47 34.239,121.47L115.271,121.47C119.751,121.47 122.39,118.831 122.39,114.351L122.39,33.749C122.39,29.214 119.806,26.63 115.271,26.63ZM68.75,107.54C68.75,108.35 68.09,109.01 67.28,109.01L41.38,109.01C40.57,109.01 39.91,108.35 39.91,107.54L39.91,40.25C39.91,39.44 40.57,38.78 41.38,38.78L66.87,38.78C67.68,38.78 68.34,39.44 68.34,40.25L68.75,107.54ZM109.19,107.54C109.19,108.71 107.89,109.41 106.91,108.77L95.1,101.05C94.59,100.72 93.93,100.73 93.43,101.09L83.08,108.58C82.65,108.89 82.14,108.92 81.71,108.75C81.33,108.48 81.08,108.05 81.08,107.55L81.08,55.29C82.48,55.01 84.04,54.87 85.84,54.87C94.69,54.87 109.19,59.86 109.19,73.96L109.19,107.54Z" style="fill:rgb(215,111,0);fill-rule:nonzero;"/>
+    </g>
 </svg>

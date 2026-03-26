@@ -3,9 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <title>Karakeep</title>
+  <link rel="icon" href="icons/icon.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+  <!-- SVG sprites — reused across all panels to avoid duplication -->
+  <svg style="display:none" aria-hidden="true">
+    <symbol id="icon-grid" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+    </symbol>
+    <symbol id="icon-gear" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/>
+    </symbol>
+  </svg>
 
   <!-- Not-configured state -->
   <main id="unconfigured" aria-label="Setup required" style="display:none">
@@ -15,11 +26,51 @@
     </div>
   </main>
 
+  <!-- API-key panel — shown when the server is configured but no key is available -->
+  <main id="authPanel" aria-label="API key required" style="display:none">
+    <div class="header">
+      <span class="header-title" aria-hidden="true">Karakeep</span>
+      <div class="header-actions">
+        <a class="header-icon-btn" id="openLibraryBtnAuth" href="#" target="_blank"
+           rel="noopener noreferrer" aria-label="Open Karakeep library">
+          <svg aria-hidden="true" width="16" height="16"><use href="#icon-grid"/></svg>
+        </a>
+        <button class="header-icon-btn" id="gearBtnAuth" aria-label="Open settings">
+          <svg aria-hidden="true" width="16" height="16"><use href="#icon-gear"/></svg>
+        </button>
+      </div>
+    </div>
+    <form class="form" id="authForm" autocomplete="on">
+      <!--
+        Hidden username field — helps password managers associate the credential
+        with the correct server. Filled with serverUrl by popup.js.
+      -->
+      <input class="visually-hidden" type="text" id="pmServerUrl"
+             autocomplete="username" aria-hidden="true" tabindex="-1" readonly>
+      <label for="sessionApiKeyInput" class="visually-hidden">API key</label>
+      <input class="tag-input" type="password" id="sessionApiKeyInput"
+             autocomplete="current-password" placeholder="API key…">
+      <div class="auth-error" id="authError" role="alert" aria-live="assertive"></div>
+      <div class="auth-actions">
+        <button type="button" class="btn-session" id="useSessionBtn">Use for session</button>
+        <button type="submit" class="save-btn"    id="storePermBtn">Save permanently</button>
+      </div>
+    </form>
+  </main>
+
   <!-- Main form -->
   <main id="mainForm" aria-label="Save bookmark" style="display:none">
     <div class="header">
       <span class="header-title" aria-hidden="true">Karakeep</span>
-      <button class="header-gear" id="gearBtn" aria-label="Open settings">⚙</button>
+      <div class="header-actions">
+        <a class="header-icon-btn" id="openLibraryBtn" href="#" target="_blank"
+           rel="noopener noreferrer" aria-label="Open Karakeep library">
+          <svg aria-hidden="true" width="16" height="16"><use href="#icon-grid"/></svg>
+        </a>
+        <button class="header-icon-btn" id="gearBtn" aria-label="Open settings">
+          <svg aria-hidden="true" width="16" height="16"><use href="#icon-gear"/></svg>
+        </button>
+      </div>
     </div>
 
     <div class="form">

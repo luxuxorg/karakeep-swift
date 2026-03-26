@@ -1,6 +1,93 @@
 // utils.js
 // IMPORTANT: No top-level chrome.* API calls anywhere in this file.
 
+// ─── URL Helpers ──────────────────────────────────────────────────────────────
+
+/**
+ * Normalizes a URL for consistent storage and lookup.
+ * - Lowercases the host
+ * - Strips the fragment (#...)
+ * - Removes trailing slashes from non-root paths
+ * - Query params are kept as-is (order is preserved, not sorted)
+ * @param {string} url
+ * @returns {string}
+ */
+export function normalizeUrl(url) {
+  try {
+    const u = new URL(url);
+    u.hostname = u.hostname.toLowerCase();
+    u.hash = '';
+    if (u.pathname !== '/' && u.pathname.endsWith('/')) {
+      u.pathname = u.pathname.replace(/\/+$/, '');
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Returns true if the server URL is safe for API key transport.
+ * HTTPS is always allowed. HTTP is allowed only for localhost dev.
+ * @param {string} serverUrl
+ * @returns {boolean}
+ */
+export function isAllowedOrigin(serverUrl) {
+  try {
+    const { protocol, hostname } = new URL(serverUrl);
+    if (protocol === 'https:') return true;
+    if (protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1')) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Derives the optional host permission pattern for a server URL.
+ * Returns null for localhost — those are covered by static host_permissions
+ * and never need a runtime permission request.
+ * @param {string} serverUrl
+ * @returns {string|null}
+ */
+export function serverOriginPattern(serverUrl) {
+  try {
+    const { protocol, hostname } = new URL(serverUrl);
+    if (protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1')) return null;
+    if (protocol === 'https:') return `https://${hostname}/*`;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Returns true if the extension already holds permission to access the server URL.
+ * Always true for localhost (static permission).
+ * @param {string} serverUrl
+ * @returns {Promise<boolean>}
+ */
+export async function hasServerPermission(serverUrl) {
+  const pattern = serverOriginPattern(serverUrl);
+  if (!pattern) return true;
+  return chrome.permissions.contains({ origins: [pattern] });
+}
+
+/**
+ * Requests the host permission for the server URL if not already granted.
+ * MUST be called from a user-gesture handler (button click).
+ * Returns { granted: boolean } — never throws.
+ * @param {string} serverUrl
+ * @returns {Promise<{ granted: boolean }>}
+ */
+export async function requestServerPermission(serverUrl) {
+  const pattern = serverOriginPattern(serverUrl);
+  if (!pattern) return { granted: true };
+  if (await chrome.permissions.contains({ origins: [pattern] })) return { granted: true };
+  const granted = await chrome.permissions.request({ origins: [pattern] });
+  return { granted };
+}
+
 // ─── Trie ────────────────────────────────────────────────────────────────────
 
 class TrieNode {
@@ -147,20 +234,47 @@ export function searchTags(query, trie, invertedIndex, allTags) {
 // ─── Storage Helpers ──────────────────────────────────────────────────────────
 
 const STORAGE_KEYS = {
-  SETTINGS: 'settings',
-  TAGS: 'tags',
-  LISTS: 'lists',
-  TAG_TRIE: 'tagTrie',
+  SETTINGS:           'settings',
+  TAGS:               'tags',
+  LISTS:              'lists',
+  TAG_TRIE:           'tagTrie',
   TAG_INVERTED_INDEX: 'tagInvertedIndex',
-  // Stores { [url]: { id, title, description, tagIds, listId } } — replaces old bookmarkedUrls string[]
-  BOOKMARKED_ITEMS: 'bookmarkedItems',
-  LAST_USED_TAGS: 'lastUsedTags',
+  // Minimal index: { [normalizedUrl]: bookmarkId } — no full bookmark content stored locally
+  BOOKMARKED_INDEX:   'bookmarkedIndex',
+  LAST_USED_TAGS:     'lastUsedTags',
 };
 
-/** @returns {Promise<{ serverUrl: string, apiKey: string }>} */
+/**
+ * Returns settings, preferring a session-only API key over the permanently stored one.
+ * This lets users supply the key for this browser session without writing it to disk.
+ * @returns {Promise<{ serverUrl: string, apiKey: string }>}
+ */
 export async function getSettings() {
+  const [localResult, sessionResult] = await Promise.all([
+    chrome.storage.local.get(STORAGE_KEYS.SETTINGS),
+    (chrome.storage.session?.get('sessionApiKey') ?? Promise.resolve({})),
+  ]);
+  const settings = { ...(localResult[STORAGE_KEYS.SETTINGS] ?? { serverUrl: '', apiKey: '' }) };
+  if (sessionResult.sessionApiKey) settings.apiKey = sessionResult.sessionApiKey;
+  return settings;
+}
+
+/** Stores the API key for this browser session only (cleared when the browser closes). */
+export async function saveSessionApiKey(apiKey) {
+  await (chrome.storage.session?.set({ sessionApiKey: apiKey }) ?? Promise.resolve());
+}
+
+/** Returns true if an API key is permanently stored in local storage. */
+export async function hasPermanentApiKey() {
   const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
-  return result[STORAGE_KEYS.SETTINGS] ?? { serverUrl: '', apiKey: '' };
+  return !!(result[STORAGE_KEYS.SETTINGS]?.apiKey);
+}
+
+/** Removes the permanently stored API key without touching the server URL or session key. */
+export async function clearPermanentApiKey() {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
+  const s = { ...(result[STORAGE_KEYS.SETTINGS] ?? {}), apiKey: '' };
+  await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: s });
 }
 
 /** @param {{ serverUrl: string, apiKey: string }} settings */
@@ -174,7 +288,7 @@ export async function saveSettings(settings) {
  *   lists: Array<{id:string,name:string}>,
  *   trie: Trie,
  *   invertedIndex: Object,
- *   bookmarkedItems: { [url: string]: { id:string, title:string, description:string, tagIds:string[], listId:string|null } },
+ *   bookmarkedIndex: { [normalizedUrl: string]: string },
  *   lastUsedTags: string[]
  * }>}
  */
@@ -184,7 +298,7 @@ export async function getCache() {
     STORAGE_KEYS.LISTS,
     STORAGE_KEYS.TAG_TRIE,
     STORAGE_KEYS.TAG_INVERTED_INDEX,
-    STORAGE_KEYS.BOOKMARKED_ITEMS,
+    STORAGE_KEYS.BOOKMARKED_INDEX,
     STORAGE_KEYS.LAST_USED_TAGS,
   ];
   const result = await chrome.storage.local.get(keys);
@@ -195,7 +309,7 @@ export async function getCache() {
                        ? Trie.deserialize(result[STORAGE_KEYS.TAG_TRIE])
                        : new Trie(),
     invertedIndex:   result[STORAGE_KEYS.TAG_INVERTED_INDEX] ?? {},
-    bookmarkedItems: result[STORAGE_KEYS.BOOKMARKED_ITEMS]   ?? {},
+    bookmarkedIndex: result[STORAGE_KEYS.BOOKMARKED_INDEX]   ?? {},
     lastUsedTags:    result[STORAGE_KEYS.LAST_USED_TAGS]     ?? [],
   };
 }
@@ -210,6 +324,12 @@ export async function getCache() {
 export async function apiFetch(path, options = {}, settings) {
   const s = settings ?? await getSettings();
   if (!s.serverUrl) throw new Error('Server URL is not configured.');
+  if (!isAllowedOrigin(s.serverUrl)) {
+    throw new Error('Server URL must use HTTPS. Local dev exception: http://localhost or http://127.0.0.1 only.');
+  }
+  if (!await hasServerPermission(s.serverUrl)) {
+    throw new Error('Server permission missing. Open Settings to re-authorize this server.');
+  }
   const url = s.serverUrl.replace(/\/$/, '') + path;
   const response = await fetch(url, {
     ...options,

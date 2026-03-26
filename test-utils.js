@@ -1,6 +1,6 @@
 // test-utils.js — run with: node test-utils.js
 // Import only the Trie class (will fail until utils.js exists)
-import { Trie, buildInvertedIndex, searchTags, getSettings, saveSettings, getCache, apiFetch } from './utils.js';
+import { Trie, buildInvertedIndex, searchTags, getSettings, saveSettings, getCache, apiFetch, normalizeUrl, isAllowedOrigin } from './utils.js';
 
 let passed = 0;
 let failed = 0;
@@ -130,6 +130,25 @@ const dupIdx = buildInvertedIndex(dupTags);
 const helloFragmentBucket = dupIdx['hel'] ?? [];
 assert(helloFragmentBucket.filter(id => id === 'dup').length === 1, 'duplicate id appears only once per bucket');
 
+// --- normalizeUrl tests ---
+console.log('\nnormalizeUrl');
+assert(normalizeUrl('https://Example.COM/path') === 'https://example.com/path', 'lowercases host');
+assert(normalizeUrl('https://example.com/path#section') === 'https://example.com/path', 'strips fragment');
+assert(normalizeUrl('https://example.com/path/') === 'https://example.com/path', 'strips trailing slash');
+assert(normalizeUrl('https://example.com/') === 'https://example.com/', 'preserves root slash');
+assert(normalizeUrl('https://example.com/path?q=1') === 'https://example.com/path?q=1', 'preserves query');
+assert(normalizeUrl('not-a-url') === 'not-a-url', 'returns input unchanged on parse failure');
+
+// --- isAllowedOrigin tests ---
+console.log('\nisAllowedOrigin');
+assert(isAllowedOrigin('https://karakeep.example.com') === true, 'HTTPS allowed');
+assert(isAllowedOrigin('http://localhost') === true, 'http://localhost allowed');
+assert(isAllowedOrigin('http://127.0.0.1') === true, 'http://127.0.0.1 allowed');
+assert(isAllowedOrigin('http://example.com') === false, 'plain HTTP blocked');
+assert(isAllowedOrigin('http://192.168.1.1') === false, 'local network HTTP blocked');
+assert(isAllowedOrigin('ftp://example.com') === false, 'FTP blocked');
+assert(isAllowedOrigin('not-a-url') === false, 'invalid URL blocked');
+
 // --- Storage helpers + apiFetch tests ---
 console.log('\nStorage helpers (mocked chrome.storage)');
 
@@ -163,7 +182,7 @@ assert(s2.apiKey === 'abc123', 'saveSettings/getSettings round-trip: apiKey');
 const c1 = await getCache();
 assert(Array.isArray(c1.tags) && c1.tags.length === 0, 'getCache() cold: tags is []');
 assert(Array.isArray(c1.lists) && c1.lists.length === 0, 'getCache() cold: lists is []');
-assert(typeof c1.bookmarkedItems === 'object' && !Array.isArray(c1.bookmarkedItems), 'getCache() cold: bookmarkedItems is {}');
+assert(typeof c1.bookmarkedIndex === 'object' && !Array.isArray(c1.bookmarkedIndex), 'getCache() cold: bookmarkedIndex is {}');
 assert(Array.isArray(c1.lastUsedTags) && c1.lastUsedTags.length === 0, 'getCache() cold: lastUsedTags is []');
 assert(typeof c1.trie.search === 'function', 'getCache() cold: trie is a live Trie instance');
 assert(typeof c1.invertedIndex === 'object', 'getCache() cold: invertedIndex is plain object');
