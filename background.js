@@ -14,6 +14,7 @@ const STORAGE = {
 
 // Skip the expensive full-crawl if a sync already happened within this window.
 const BOOKMARK_SYNC_TTL = 4 * 60 * 60 * 1000; // 4 hours
+const MAX_BOOKMARK_SYNC = 5000;
 
 // ─── Cache Refresh ────────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ async function fetchAllBookmarks() {
       const normalized = url ? normalizeUrl(url) : '';
       if (normalized) index[normalized] = b.id;
     }
+    if (Object.keys(index).length >= MAX_BOOKMARK_SYNC) break;
     cursor = data.nextCursor ?? data.cursor ?? null;
     if (!cursor || bookmarks.length === 0) break;
   }
@@ -247,6 +249,9 @@ chrome.commands.onCommand.addListener((command) => {
     const result = await chrome.storage.local.get(STORAGE.LAST_TAGS);
     const lastUsedTags = result[STORAGE.LAST_TAGS] ?? [];
     createBookmark(tab.url, tab.title ?? '', '', lastUsedTags, null)
-      .catch(() => {}); // silently swallow errors
+      .catch(() => {
+        chrome.action.setBadgeText({ text: '!', tabId: tab.id });
+        chrome.action.setBadgeBackgroundColor({ color: '#dc2626', tabId: tab.id });
+      });
   });
 });
