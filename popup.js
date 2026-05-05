@@ -178,7 +178,8 @@ function renderChips() {
 
 function removeChipById(id) {
   const idx = selectedTags.findIndex(t => t.id === id);
-  selectedTags = selectedTags.filter(t => t.id !== id);
+  if (idx === -1) return;
+  selectedTags.splice(idx, 1);
   renderChips();
   // Keep focus inside the chip row if chips remain, otherwise return to tag input
   const chips = chipsRow.querySelectorAll('.chip');
