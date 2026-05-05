@@ -64,7 +64,7 @@ The API key is a bearer token. To prevent credential leakage:
 | `tagInvertedIndex` | Fragment → id map | Substring search |
 | `lists` | `[{ id, name }]` | List dropdown |
 | `bookmarkedIndex` | `{ normalizedUrl: bookmarkId }` | Duplicate detection and update routing |
-| `lastUsedTags` | `string[]` | Reused for Ctrl+Shift+S silent save |
+| `lastUsedTags` | `string[]` | Reused for Ctrl+Shift+K silent save |
 | `lastBookmarkSync` | timestamp | Prevents redundant full syncs on startup |
 
 **What is NOT stored locally:** bookmark titles, notes/descriptions, tag assignments, list assignments for individual bookmarks. These are fetched on-demand from the server when the popup opens on an already-saved URL.

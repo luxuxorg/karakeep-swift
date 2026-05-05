@@ -240,7 +240,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
-// ─── Silent Save (Ctrl+Shift+S) ───────────────────────────────────────────────
+// ─── Silent Save (Ctrl+Shift+K) ───────────────────────────────────────────────
 
 chrome.commands.onCommand.addListener((command) => {
   if (command !== 'silent-save') return;
