@@ -14,12 +14,13 @@ const STORAGE = {
 
 // Skip the expensive full-crawl if a sync already happened within this window.
 const BOOKMARK_SYNC_TTL = 4 * 60 * 60 * 1000; // 4 hours
-const MAX_BOOKMARK_SYNC = 5000;
+const BOOKMARK_SYNC_CAP = 5000;
 
 // ─── Cache Refresh ────────────────────────────────────────────────────────────
 
 async function fetchAllBookmarks() {
   const index = {};
+  let count = 0;
   let cursor = null;
   while (true) {
     const path = cursor
@@ -30,9 +31,9 @@ async function fetchAllBookmarks() {
     for (const b of bookmarks) {
       const url = b.url ?? b.content?.url;
       const normalized = url ? normalizeUrl(url) : '';
-      if (normalized) index[normalized] = b.id;
+      if (normalized) { index[normalized] = b.id; count++; }
     }
-    if (Object.keys(index).length >= MAX_BOOKMARK_SYNC) break;
+    if (count >= BOOKMARK_SYNC_CAP) break;
     cursor = data.nextCursor ?? data.cursor ?? null;
     if (!cursor || bookmarks.length === 0) break;
   }
