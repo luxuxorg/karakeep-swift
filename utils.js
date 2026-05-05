@@ -22,7 +22,7 @@ export function normalizeUrl(url) {
     }
     return u.toString();
   } catch {
-    return url;
+    return '';
   }
 }
 

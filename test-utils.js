@@ -137,7 +137,7 @@ assert(normalizeUrl('https://example.com/path#section') === 'https://example.com
 assert(normalizeUrl('https://example.com/path/') === 'https://example.com/path', 'strips trailing slash');
 assert(normalizeUrl('https://example.com/') === 'https://example.com/', 'preserves root slash');
 assert(normalizeUrl('https://example.com/path?q=1') === 'https://example.com/path?q=1', 'preserves query');
-assert(normalizeUrl('not-a-url') === 'not-a-url', 'returns input unchanged on parse failure');
+assert(normalizeUrl('not-a-url') === '', 'returns empty string on parse failure');
 
 // --- isAllowedOrigin tests ---
 console.log('\nisAllowedOrigin');

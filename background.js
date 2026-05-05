@@ -196,7 +196,7 @@ function validatePayload(p) {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Reject messages from outside this extension
-  if (!sender || sender.id !== chrome.runtime.id) {
+  if (!sender || sender.id !== chrome.runtime.id || sender.origin !== self.origin) {
     sendResponse({ ok: false, error: 'unauthorized' });
     return false;
   }
