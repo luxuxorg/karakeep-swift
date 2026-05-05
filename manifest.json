@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Karakeep Swift",
   "short_name": "Karakeep Swift",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Lutz Schmitt",
   "description": "The swift Karakeep-Plugin. Stores tags and bookmark URLs locally for fast response, privacy friendly, security hardened.",
   "permissions": ["storage", "activeTab", "alarms", "tabs", "scripting"],
