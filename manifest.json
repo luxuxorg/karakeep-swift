@@ -28,7 +28,7 @@
   "options_page": "options.html",
   "commands": {
     "silent-save": {
-      "suggested_key": { "default": "Ctrl+Shift+S" },
+      "suggested_key": { "default": "Ctrl+Shift+K" },
       "description": "Save current tab silently to Karakeep"
     }
   }
