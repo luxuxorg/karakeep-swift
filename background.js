@@ -28,7 +28,8 @@ async function fetchAllBookmarks() {
     const bookmarks = data.bookmarks ?? data.items ?? data ?? [];
     for (const b of bookmarks) {
       const url = b.url ?? b.content?.url;
-      if (url) index[normalizeUrl(url)] = b.id;
+      const normalized = url ? normalizeUrl(url) : '';
+      if (normalized) index[normalized] = b.id;
     }
     cursor = data.nextCursor ?? data.cursor ?? null;
     if (!cursor || bookmarks.length === 0) break;
