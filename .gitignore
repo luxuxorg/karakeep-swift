@@ -1,7 +1,9 @@
 # AI tooling
 .claude/
 .superpowers/
+.worktrees/
 docs/superpowers/
+docs/fix-plan.md
 
 # OS
 .DS_Store
