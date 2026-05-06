@@ -46,25 +46,26 @@ saveBtn.addEventListener('click', async () => {
     return;
   }
 
-  // Revoke permission for the previous origin if the URL has changed
   const { serverUrl: prevUrl } = await getSettings();
   const prevPattern = prevUrl ? serverOriginPattern(prevUrl) : null;
   const newPattern  = serverOriginPattern(serverUrl);
-  if (prevPattern && prevPattern !== newPattern) {
-    await chrome.permissions.remove({ origins: [prevPattern] }).catch(() => {});
-  }
 
-  // Request host permission for the new origin if not already held
+  // Request new access before changing stored settings or revoking old access.
   if (newPattern && !await hasServerPermission(serverUrl)) {
-    showStatus('Requesting access to this server…', '');
+    showStatus('Requesting access to this server...', '');
   }
   const { granted } = await requestServerPermission(serverUrl);
   if (!granted) {
-    showStatus('✗ Permission denied — click Allow when prompted to grant access to this server.', 'error');
+    showStatus('Permission denied. Existing server settings were not changed.', 'error');
     return;
   }
 
   await saveSettings({ serverUrl, apiKey });
+
+  if (prevPattern && prevPattern !== newPattern) {
+    await chrome.permissions.remove({ origins: [prevPattern] }).catch(() => {});
+  }
+
   chrome.runtime.sendMessage({ action: 'refreshCache' });
   showStatus('Saved ✓', 'success');
   setTimeout(() => showStatus('', ''), 2000);

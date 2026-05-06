@@ -1,6 +1,6 @@
 // test-utils.js — run with: node test-utils.js
 // Import only the Trie class (will fail until utils.js exists)
-import { Trie, buildInvertedIndex, searchTags, getSettings, saveSettings, getCache, apiFetch, normalizeUrl, isAllowedOrigin } from './utils.js';
+import { Trie, buildInvertedIndex, searchTags, getSettings, saveSettings, getCache, apiFetch, normalizeUrl, isAllowedOrigin, serverOriginPattern } from './utils.js';
 
 let passed = 0;
 let failed = 0;
@@ -149,6 +149,12 @@ assert(isAllowedOrigin('http://192.168.1.1') === false, 'local network HTTP bloc
 assert(isAllowedOrigin('ftp://example.com') === false, 'FTP blocked');
 assert(isAllowedOrigin('not-a-url') === false, 'invalid URL blocked');
 
+console.log('\nserverOriginPattern');
+assert(serverOriginPattern('https://karakeep.example.com/path') === 'https://karakeep.example.com/*', 'HTTPS origin pattern ignores path');
+assert(serverOriginPattern('http://localhost:3000') === 'http://localhost/*', 'localhost uses optional runtime origin');
+assert(serverOriginPattern('http://127.0.0.1:3000') === 'http://127.0.0.1/*', '127.0.0.1 uses optional runtime origin');
+assert(serverOriginPattern('http://example.com') === null, 'non-local HTTP has no permission pattern');
+
 // --- Storage helpers + apiFetch tests ---
 console.log('\nStorage helpers (mocked chrome.storage)');
 
@@ -163,8 +169,15 @@ globalThis.chrome = {
           : { [keys]: store[keys] }
       ),
       set: (obj) => { Object.assign(store, obj); return Promise.resolve(); },
-    }
-  }
+    },
+    session: {
+      get: () => Promise.resolve({}),
+      set: () => Promise.resolve(),
+    },
+  },
+  permissions: {
+    contains: () => Promise.resolve(true),
+  },
 };
 
 // getSettings — cold (returns defaults)
@@ -193,6 +206,21 @@ try {
   assert(false, 'apiFetch throws on empty serverUrl');
 } catch (e) {
   assert(e instanceof Error, 'apiFetch throws Error on empty serverUrl');
+}
+
+globalThis.fetch = () => Promise.resolve({
+  ok: false,
+  status: 500,
+  statusText: 'Internal Server Error',
+  text: () => Promise.resolve('secret token leak'),
+});
+
+try {
+  await apiFetch('/api/v1/tags', undefined, { serverUrl: 'https://example.com', apiKey: 'abc123' });
+  assert(false, 'apiFetch throws sanitized error on failed response');
+} catch (e) {
+  assert(e.message === 'HTTP 500: Internal Server Error', 'apiFetch excludes response body from errors');
+  assert(!e.message.includes('secret token leak'), 'apiFetch does not leak response body text');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -15,6 +15,7 @@ const STORAGE = {
 // Skip the expensive full-crawl if a sync already happened within this window.
 const BOOKMARK_SYNC_TTL = 4 * 60 * 60 * 1000; // 4 hours
 const BOOKMARK_SYNC_CAP = 5000;
+const silentSaveInFlight = new Map();
 
 // ─── Cache Refresh ────────────────────────────────────────────────────────────
 
@@ -132,9 +133,26 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // ─── Bookmark helpers ─────────────────────────────────────────────────────────
 
 async function updateBadgeForUrl(url) {
+  const normalized = normalizeUrl(url);
   const allTabs = await chrome.tabs.query({});
   for (const tab of allTabs) {
-    if (tab.url === url) updateBadge(tab.id, tab.url);
+    if (normalizeUrl(tab.url) === normalized) updateBadge(tab.id, tab.url);
+  }
+}
+
+async function getCachedBookmarkId(url) {
+  const result = await chrome.storage.local.get(STORAGE.BOOKMARKED_INDEX);
+  const index = result[STORAGE.BOOKMARKED_INDEX] ?? {};
+  return index[normalizeUrl(url)] ?? null;
+}
+
+async function removeCachedBookmark(url) {
+  const normalized = normalizeUrl(url);
+  const result = await chrome.storage.local.get(STORAGE.BOOKMARKED_INDEX);
+  const index = result[STORAGE.BOOKMARKED_INDEX] ?? {};
+  if (Object.hasOwn(index, normalized)) {
+    delete index[normalized];
+    await chrome.storage.local.set({ [STORAGE.BOOKMARKED_INDEX]: index });
   }
 }
 
@@ -178,13 +196,31 @@ async function updateBookmark(id, url, title, description, tagIds, listId) {
   return data;
 }
 
+async function updateBookmarkTags(id, url, tagIds) {
+  const data = await apiFetch(`/api/v1/bookmarks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tagIds }),
+  });
+
+  const result = await chrome.storage.local.get(STORAGE.BOOKMARKED_INDEX);
+  const index = result[STORAGE.BOOKMARKED_INDEX] ?? {};
+  index[normalizeUrl(url)] = id;
+  await chrome.storage.local.set({
+    [STORAGE.BOOKMARKED_INDEX]: index,
+    [STORAGE.LAST_TAGS]:        tagIds ?? [],
+  });
+
+  await updateBadgeForUrl(url);
+  return data;
+}
+
 // ─── Message Router ───────────────────────────────────────────────────────────
 
 const MAX_URL_LEN    = 2048;
 const MAX_STR_LEN    = 10000;
 const MAX_TAGS       = 50;
 const MAX_ID_LEN     = 200;
-const ALLOWED_ACTIONS = new Set(['createBookmark', 'updateBookmark', 'refreshCache']);
+const ALLOWED_ACTIONS = new Set(['createBookmark', 'updateBookmark', 'refreshCache', 'removeCachedBookmark']);
 
 function validatePayload(p) {
   if (!p || typeof p !== 'object') return 'missing payload';
@@ -233,6 +269,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.action === 'removeCachedBookmark') {
+    if (!msg.payload || typeof msg.payload.url !== 'string' || msg.payload.url.length > MAX_URL_LEN) {
+      sendResponse({ ok: false, error: 'invalid url' }); return false;
+    }
+    try { new URL(msg.payload.url); } catch { sendResponse({ ok: false, error: 'invalid url format' }); return false; }
+    removeCachedBookmark(msg.payload.url)
+      .then(() => sendResponse({ ok: true }))
+      .catch(e => sendResponse({ ok: false, error: e.message }));
+    return true;
+  }
+
   if (msg.action === 'refreshCache') {
     Promise.all([refreshCache(), syncBookmarks({ force: true })])
       .then(() => sendResponse({ ok: true }));
@@ -247,12 +294,33 @@ chrome.commands.onCommand.addListener((command) => {
   chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
     const tab = tabs[0];
     if (!tab?.url) return;
+    const normalized = normalizeUrl(tab.url);
+    if (!normalized) return;
     const result = await chrome.storage.local.get(STORAGE.LAST_TAGS);
     const lastUsedTags = result[STORAGE.LAST_TAGS] ?? [];
-    createBookmark(tab.url, tab.title ?? '', '', lastUsedTags, null)
-      .catch(() => {
-        chrome.action.setBadgeText({ text: '!', tabId: tab.id });
-        chrome.action.setBadgeBackgroundColor({ color: '#dc2626', tabId: tab.id });
+    if (!silentSaveInFlight.has(normalized)) {
+      const save = (async () => {
+        const cachedId = await getCachedBookmarkId(tab.url);
+        if (!cachedId) return createBookmark(tab.url, tab.title ?? '', '', lastUsedTags, null);
+        try {
+          return await updateBookmarkTags(cachedId, tab.url, lastUsedTags);
+        } catch (e) {
+          if (!isStaleBookmarkError(e)) throw e;
+          await removeCachedBookmark(tab.url);
+          return createBookmark(tab.url, tab.title ?? '', '', lastUsedTags, null);
+        }
+      })().finally(() => {
+        silentSaveInFlight.delete(normalized);
       });
+      silentSaveInFlight.set(normalized, save);
+    }
+    silentSaveInFlight.get(normalized).catch(() => {
+      chrome.action.setBadgeText({ text: '!', tabId: tab.id });
+      chrome.action.setBadgeBackgroundColor({ color: '#dc2626', tabId: tab.id });
+    });
   });
 });
+
+function isStaleBookmarkError(e) {
+  return e?.status === 404 || e?.status === 410 || /^HTTP (404|410):/.test(e?.message ?? '');
+}
