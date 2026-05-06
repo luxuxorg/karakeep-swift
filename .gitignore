@@ -16,4 +16,6 @@ Thumbs.db
 *.user
 
 # Packed extension
+dist/
 *.crx
+*.zip

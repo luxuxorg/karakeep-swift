@@ -45,15 +45,15 @@ export function isAllowedOrigin(serverUrl) {
 
 /**
  * Derives the optional host permission pattern for a server URL.
- * Returns null for localhost — those are covered by static host_permissions
- * and never need a runtime permission request.
+ * Localhost dev origins are optional runtime permissions, not static grants.
  * @param {string} serverUrl
  * @returns {string|null}
  */
 export function serverOriginPattern(serverUrl) {
   try {
     const { protocol, hostname } = new URL(serverUrl);
-    if (protocol === 'http:' && (hostname === 'localhost' || hostname === '127.0.0.1')) return null;
+    if (protocol === 'http:' && hostname === 'localhost') return 'http://localhost/*';
+    if (protocol === 'http:' && hostname === '127.0.0.1') return 'http://127.0.0.1/*';
     if (protocol === 'https:') return `https://${hostname}/*`;
     return null;
   } catch {
@@ -63,7 +63,7 @@ export function serverOriginPattern(serverUrl) {
 
 /**
  * Returns true if the extension already holds permission to access the server URL.
- * Always true for localhost (static permission).
+ * Localhost requires the same optional permission flow as HTTPS servers.
  * @param {string} serverUrl
  * @returns {Promise<boolean>}
  */
@@ -340,8 +340,7 @@ export async function apiFetch(path, options = {}, settings) {
     },
   });
   if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+    throw new Error(`HTTP ${response.status}: ${response.statusText || 'Request failed'}`);
   }
   return response.json();
 }

@@ -6,8 +6,7 @@
   "author": "Lutz Schmitt",
   "description": "The swift Karakeep-Plugin. Stores tags and bookmark URLs locally for fast response, privacy friendly, security hardened.",
   "permissions": ["storage", "activeTab", "alarms", "tabs", "scripting"],
-  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
-  "optional_host_permissions": ["https://*/*"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

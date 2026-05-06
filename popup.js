@@ -354,6 +354,18 @@ function hideError() {
   errorBanner.textContent = '';
 }
 
+function sendRuntimeMessage(message) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(message, (resp) => {
+      if (chrome.runtime.lastError) {
+        resolve({ ok: false, error: 'Extension error. Please reload the popup.' });
+        return;
+      }
+      resolve(resp ?? { ok: false, error: 'No response from extension.' });
+    });
+  });
+}
+
 saveBtn.addEventListener('click', () => {
   hideError();
 
@@ -373,21 +385,23 @@ saveBtn.addEventListener('click', () => {
     ? { action: 'updateBookmark', payload: { id: alreadySavedId, ...payload } }
     : { action: 'createBookmark', payload };
 
-  chrome.runtime.sendMessage(message, (resp) => {
-    if (chrome.runtime.lastError) {
-      showError('Extension error — please reload the popup.');
-      saveBtn.disabled = false;
-      saveBtn.textContent = alreadySavedId ? 'Update bookmark' : 'Save';
-      return;
+  (async () => {
+    let resp = await sendRuntimeMessage(message);
+
+    if (!resp?.ok && alreadySavedId && /HTTP (404|410)\b/.test(resp?.error ?? '')) {
+      await sendRuntimeMessage({ action: 'removeCachedBookmark', payload: { url: currentUrl } });
+      alreadySavedId = null;
+      resp = await sendRuntimeMessage({ action: 'createBookmark', payload });
     }
+
     if (resp?.ok) {
       setTimeout(() => window.close(), 800);
     } else {
-      showError(resp?.error ?? 'Could not save — please try again.');
+      showError(resp?.error ?? 'Could not save. Please try again.');
       saveBtn.disabled = false;
       saveBtn.textContent = alreadySavedId ? 'Update bookmark' : 'Save';
     }
-  });
+  })();
 });
 
 // ─── Keyboard summary ─────────────────────────────────────────────────────────

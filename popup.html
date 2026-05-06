@@ -51,6 +51,9 @@
       <input class="tag-input" type="password" id="sessionApiKeyInput"
              autocomplete="current-password" placeholder="API key…">
       <div class="auth-error" id="authError" role="alert" aria-live="assertive"></div>
+      <p class="storage-warning" id="storageWarning">
+        Session use is recommended. Permanent save writes the API key to Chrome extension storage, which is not encrypted at rest.
+      </p>
       <div class="auth-actions">
         <button type="button" class="btn-session" id="useSessionBtn">Use for session</button>
         <button type="submit" class="save-btn"    id="storePermBtn">Save permanently</button>
